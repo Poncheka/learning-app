@@ -2,6 +2,11 @@
 // Milestone 1: type a topic and minutes, get a spoken lesson, hear it.
 //
 //   node scripts/prove-loop.mjs "Kathmandu, 1800 to 1900" 3
+//   node scripts/prove-loop.mjs "Kathmandu, 1800 to 1900" 3 --writer terra --voice marin
+//
+// --writer picks the model that writes the script: luna (cheapest, the default) or terra.
+// --voice picks one of OpenAI's built-in voices. Each run is saved under its own name,
+// so the same topic can be compared across writers and voices.
 //
 // The writing and the voice happen in the prove-loop edge function, which is where the
 // OpenAI key lives. This script only asks for a lesson, saves it in lessons/ and plays it.
@@ -28,7 +33,14 @@ if (!url || !key) {
   process.exit(1);
 }
 
-const [topic, minutesArg] = process.argv.slice(2);
+const args = process.argv.slice(2);
+const flags = {};
+const positional = [];
+for (let i = 0; i < args.length; i++) {
+  if (args[i] === '--writer' || args[i] === '--voice') flags[args[i].slice(2)] = args[++i];
+  else positional.push(args[i]);
+}
+const [topic, minutesArg] = positional;
 const dryRun = topic === '--check';
 const minutes = Number(minutesArg ?? 3);
 if (!topic || (!dryRun && !Number.isFinite(minutes))) {
@@ -42,7 +54,7 @@ const started = Date.now();
 const res = await fetch(`${url}/functions/v1/prove-loop`, {
   method: 'POST',
   headers: { 'Content-Type': 'application/json', apikey: key },
-  body: JSON.stringify(dryRun ? { dryRun: true } : { topic, minutes }),
+  body: JSON.stringify(dryRun ? { dryRun: true } : { topic, minutes, ...flags }),
 });
 const text = await res.text();
 let data;
@@ -61,7 +73,8 @@ if (dryRun) {
   process.exit(0);
 }
 
-const slug = topic.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60) || 'lesson';
+const slugify = (text) => text.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+const slug = `${slugify(topic).slice(0, 60) || 'lesson'}-${slugify(data.writer)}-${data.voice}`;
 const outDir = join(root, 'lessons');
 mkdirSync(outDir, { recursive: true });
 const mp3Path = join(outDir, `${slug}.mp3`);
@@ -70,7 +83,7 @@ writeFileSync(join(outDir, `${slug}.txt`), `${data.title}\n\n${data.script}\n`);
 
 const seconds = Math.round((Date.now() - started) / 1000);
 console.log(`\n"${data.title}"`);
-console.log(`${data.words} words, ready in ${seconds} seconds.`);
+console.log(`${data.words} words, written by ${data.writer}, read by ${data.voice}, ready in ${seconds} seconds.`);
 console.log(`Saved to lessons/${slug}.mp3 (the script is next to it as a .txt).`);
 
 if (process.platform === 'darwin') {

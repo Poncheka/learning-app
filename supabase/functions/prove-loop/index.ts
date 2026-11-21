@@ -7,8 +7,9 @@
 // writer is told to stay away from exact dates and figures it is not sure of. The planner,
 // segments, storage and the Wikipedia grounding all arrive in milestone 2.
 //
-// POST { topic: string, minutes: number }      ->  { title, script, words, audio_base64 }
-// POST { dryRun: true }                        ->  { ok, openaiKeySet, textModel, voiceModel, voice }
+// POST { topic: string, minutes: number, writer?: "luna" | "terra", voice?: string }
+//                                               ->  { title, script, words, writer, voice, audio_base64 }
+// POST { dryRun: true }                        ->  { ok, openaiKeySet, writers, voiceModel, voice, voices }
 //
 // Callers must send the project's publishable key in the `apikey` header. The platform's
 // own JWT check is off for this function (see supabase/config.toml), so that check is here.
@@ -16,23 +17,52 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { encodeBase64 } from "jsr:@std/encoding@1/base64";
 
 const OPENAI_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
-// Lowest tier first. Change these three in Supabase secrets, with no code change, to try others.
-const TEXT_MODEL = Deno.env.get("OPENAI_TEXT_MODEL") ?? "gpt-6-luna";
+// Lowest tier first. A caller can ask for the next tier up by name, to compare by ear.
+const WRITERS: Record<string, string> = { luna: "gpt-6-luna", terra: "gpt-6.1-terra" };
+const DEFAULT_WRITER = "luna";
 const VOICE_MODEL = Deno.env.get("OPENAI_VOICE_MODEL") ?? "gpt-4o-mini-tts";
-const VOICE = Deno.env.get("OPENAI_VOICE") ?? "cedar";
+// OpenAI's built-in voices. Stock voices only: this app never clones a real person.
+const VOICES = ["alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer", "verse", "marin", "cedar"];
+const DEFAULT_VOICE = Deno.env.get("OPENAI_VOICE") ?? "cedar";
 
 // Narration runs at roughly 150 words a minute.
 const WORDS_PER_MINUTE = 150;
 // A single request has to finish inside the edge function time limit, so the proof is capped.
 const MAX_MINUTES = 10;
-// The voice model accepts a limited amount of text per request, so long scripts are split
-// at sentence ends into pieces this size and voiced a few at a time.
-const CHUNK_CHARS = 1500;
+// Every separate voice request is a fresh performance, and the delivery can shift between
+// them, which is heard as the narrator briefly turning into someone else. So a script is
+// voiced in as few requests as possible: a piece this size holds about five minutes, and
+// only longer scripts are split, at sentence ends. The model's own limit is 2,000 tokens.
+const CHUNK_CHARS = 5000;
 const VOICE_CONCURRENCY = 4;
 
+// The narrator's direction. The voice model has no speed setting; pace is asked for in words.
 const VOICE_STYLE =
-  "Warm, clear and unhurried, like a good documentary narrator talking to one person. " +
-  "Natural pauses between ideas. Never rushed, never theatrical.";
+  "You are the narrator of a thoughtful audio documentary, talking to one person. " +
+  "Pace: slow and measured, clearly slower than everyday conversation, with a real pause after each idea. " +
+  "Tone: warm, calm and curious, with quiet delight at the surprising parts. " +
+  "Keep exactly the same voice, pace and energy from the first word to the last. Never rushed, never theatrical.";
+
+// What the writer is told. The first paragraph is the editorial brief: what makes a lesson
+// worth hearing. The last is the accuracy rule, which matters most while there are no sources.
+const WRITER_BRIEF =
+  "You write short audio lessons that are read aloud to one curious adult, often while driving.\n\n" +
+  "What makes a lesson worth hearing: about once a minute the listener should think 'wait, really?'. " +
+  "Skip the overview anyone could guess. Before you write, think of the most surprising, specific, true " +
+  "things about the topic: strange mechanisms, named species, people, places, experiments, records, and " +
+  "consequences nobody expects. Build the lesson around the best three or four and leave the rest out. " +
+  "Open cold with the single most surprising one. No 'today we will explore', no 'have you ever wondered'. " +
+  "For each one, explain how or why it works, because the mechanism is where the interest is. " +
+  "Be concrete: name the thing and say what it does. One vivid comparison beats three adjectives. " +
+  "Cut any sentence that only sets up the next one. End on one line that leaves something to think about.\n\n" +
+  "Write for the ear: plain spoken sentences, one idea at a time, no lists, no headings, no markdown, " +
+  "no parentheses, no stage directions. Spell out numbers the way a person would say them.\n\n" +
+  "Accuracy matters more than color. You have no sources in front of you, so use only facts you are " +
+  "confident are well established. Named things and mechanisms are welcome. Give exact dates, figures " +
+  "and quotations only when you are certain; otherwise say it roughly, such as 'about a third' or " +
+  "'in the late eighteen hundreds'. Never invent names, numbers or quotes. If a popular claim is " +
+  "disputed or overstated, say so in a few words rather than repeating it as fact.\n\n" +
+  "Reply with a short title on the first line, then a blank line, then the narration and nothing else.";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -66,22 +96,14 @@ async function openaiError(step: string, res: Response): Promise<UpstreamError> 
   return new UpstreamError(step, res.status, detail.slice(0, 500));
 }
 
-async function writeScript(topic: string, minutes: number): Promise<{ title: string; script: string }> {
+async function writeScript(topic: string, minutes: number, model: string): Promise<{ title: string; script: string }> {
   const words = Math.round(minutes * WORDS_PER_MINUTE);
   const res = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: { Authorization: `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: TEXT_MODEL,
-      instructions:
-        "You write short audio lessons that are read aloud to one curious adult, often while driving. " +
-        "Write for the ear: plain spoken sentences, one idea at a time, no lists, no headings, no markdown, " +
-        "no parentheses, no stage directions. Open with a hook, tell it as a story, and end with one line " +
-        "that leaves the listener with something to think about. " +
-        "Accuracy matters more than color. You have no sources in front of you, so do not state exact dates, " +
-        "figures or quotations unless you are certain of them. Prefer 'in the early eighteen hundreds' to a " +
-        "guessed year. Never invent names, numbers or quotes. " +
-        "Reply with a short title on the first line, then a blank line, then the narration and nothing else.",
+      model,
+      instructions: WRITER_BRIEF,
       input: `Topic: ${topic}\nLength: about ${words} words, which is ${minutes} minutes read aloud.`,
     }),
   });
@@ -120,13 +142,13 @@ function chunkScript(script: string): string[] {
   return chunks;
 }
 
-async function speak(text: string): Promise<Uint8Array> {
+async function speak(text: string, voice: string): Promise<Uint8Array> {
   const res = await fetch("https://api.openai.com/v1/audio/speech", {
     method: "POST",
     headers: { Authorization: `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
       model: VOICE_MODEL,
-      voice: VOICE,
+      voice,
       input: text,
       instructions: VOICE_STYLE,
       response_format: "mp3",
@@ -137,13 +159,13 @@ async function speak(text: string): Promise<Uint8Array> {
 }
 
 /** Voices every chunk, a few at a time, and joins the mp3 pieces in order. */
-async function speakAll(chunks: string[]): Promise<Uint8Array> {
+async function speakAll(chunks: string[], voice: string): Promise<Uint8Array> {
   const parts: Uint8Array[] = new Array(chunks.length);
   let next = 0;
   const worker = async () => {
     while (next < chunks.length) {
       const i = next++;
-      parts[i] = await speak(chunks[i]);
+      parts[i] = await speak(chunks[i], voice);
     }
   };
   await Promise.all(Array.from({ length: Math.min(VOICE_CONCURRENCY, chunks.length) }, worker));
@@ -163,7 +185,7 @@ Deno.serve(async (req: Request) => {
   const key = req.headers.get("apikey") ?? "";
   if (!key || !allowedKeys().includes(key)) return json({ error: "Missing or wrong apikey header." }, 401);
 
-  let body: { topic?: unknown; minutes?: unknown; dryRun?: unknown };
+  let body: { topic?: unknown; minutes?: unknown; writer?: unknown; voice?: unknown; dryRun?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -172,7 +194,7 @@ Deno.serve(async (req: Request) => {
 
   // A free check that the function is deployed, reachable and has its key. Calls nothing.
   if (body.dryRun === true) {
-    return json({ ok: true, openaiKeySet: OPENAI_KEY.length > 0, textModel: TEXT_MODEL, voiceModel: VOICE_MODEL, voice: VOICE });
+    return json({ ok: true, openaiKeySet: OPENAI_KEY.length > 0, writers: WRITERS, voiceModel: VOICE_MODEL, voice: DEFAULT_VOICE, voices: VOICES });
   }
 
   const topic = typeof body.topic === "string" ? body.topic.trim().slice(0, 200) : "";
@@ -181,15 +203,21 @@ Deno.serve(async (req: Request) => {
   if (!Number.isFinite(minutes) || minutes < 1 || minutes > MAX_MINUTES) {
     return json({ error: `Minutes must be between 1 and ${MAX_MINUTES} for this test.` }, 400);
   }
+  const writer = body.writer === undefined ? DEFAULT_WRITER : String(body.writer);
+  if (!Object.hasOwn(WRITERS, writer)) return json({ error: `Writer must be one of: ${Object.keys(WRITERS).join(", ")}.` }, 400);
+  const voice = body.voice === undefined ? DEFAULT_VOICE : String(body.voice);
+  if (!VOICES.includes(voice)) return json({ error: `Voice must be one of: ${VOICES.join(", ")}.` }, 400);
   if (!OPENAI_KEY) return json({ error: "OPENAI_API_KEY is not set as an edge function secret." }, 500);
 
   try {
-    const { title, script } = await writeScript(topic, minutes);
-    const audio = await speakAll(chunkScript(script));
+    const { title, script } = await writeScript(topic, minutes, WRITERS[writer]);
+    const audio = await speakAll(chunkScript(script), voice);
     return json({
       title,
       script,
       words: script.split(/\s+/).length,
+      writer: WRITERS[writer],
+      voice,
       audio_base64: encodeBase64(audio),
     });
   } catch (err) {
