@@ -17,9 +17,10 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { encodeBase64 } from "jsr:@std/encoding@1/base64";
 
 const OPENAI_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
-// Lowest tier first. A caller can ask for the next tier up by name, to compare by ear.
+// Terra is the default: Jeff compared it with luna by ear and picked it. Luna, the cheapest
+// tier, stays available by name for comparisons.
 const WRITERS: Record<string, string> = { luna: "gpt-6-luna", terra: "gpt-6.1-terra" };
-const DEFAULT_WRITER = "luna";
+const DEFAULT_WRITER = "terra";
 const VOICE_MODEL = Deno.env.get("OPENAI_VOICE_MODEL") ?? "gpt-4o-mini-tts";
 // OpenAI's built-in voices. Stock voices only: this app never clones a real person.
 const VOICES = ["alloy", "ash", "ballad", "coral", "echo", "fable", "nova", "onyx", "sage", "shimmer", "verse", "marin", "cedar"];
@@ -194,7 +195,7 @@ Deno.serve(async (req: Request) => {
 
   // A free check that the function is deployed, reachable and has its key. Calls nothing.
   if (body.dryRun === true) {
-    return json({ ok: true, openaiKeySet: OPENAI_KEY.length > 0, writers: WRITERS, voiceModel: VOICE_MODEL, voice: DEFAULT_VOICE, voices: VOICES });
+    return json({ ok: true, openaiKeySet: OPENAI_KEY.length > 0, writers: WRITERS, defaultWriter: DEFAULT_WRITER, voiceModel: VOICE_MODEL, voice: DEFAULT_VOICE, voices: VOICES });
   }
 
   const topic = typeof body.topic === "string" ? body.topic.trim().slice(0, 200) : "";

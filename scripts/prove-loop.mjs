@@ -2,9 +2,9 @@
 // Milestone 1: type a topic and minutes, get a spoken lesson, hear it.
 //
 //   node scripts/prove-loop.mjs "Kathmandu, 1800 to 1900" 3
-//   node scripts/prove-loop.mjs "Kathmandu, 1800 to 1900" 3 --writer terra --voice marin
+//   node scripts/prove-loop.mjs "Kathmandu, 1800 to 1900" 3 --writer luna --voice marin
 //
-// --writer picks the model that writes the script: luna (cheapest, the default) or terra.
+// --writer picks the model that writes the script: terra (the default) or luna (cheapest).
 // --voice picks one of OpenAI's built-in voices. Each run is saved under its own name,
 // so the same topic can be compared across writers and voices.
 //
