@@ -47,3 +47,6 @@ supabase/.temp/
 
 # Files the Claude app drops here
 Claude outputs/
+
+# Lessons made by scripts/prove-loop.mjs
+lessons/
