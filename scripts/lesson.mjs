@@ -105,8 +105,15 @@ try {
   if (!topicId) {
     console.log(`Preparing "${typedTopic}": reading, taking notes, outlining, writing the opening.`);
     console.log('In the app this part happens ahead of time, before you ever see the topic.');
+    console.log('This takes about a minute, and nothing is wrong while it counts.');
     const prepareStarted = Date.now();
-    topic = await call({ action: 'prepare', topic: typedTopic });
+    const ticker = setInterval(() => process.stdout.write(`\r  Working... ${Math.round((Date.now() - prepareStarted) / 1000)}s `), 1000);
+    try {
+      topic = await call({ action: 'prepare', topic: typedTopic });
+    } finally {
+      clearInterval(ticker);
+      process.stdout.write('\r');
+    }
     console.log(`\nPrepared in ${seconds(prepareStarted)} seconds: "${topic.title}"`);
     console.log(`  ${topic.hook}`);
     console.log(`  ${topic.fact_count} fact notes from: ${topic.sources.map((s) => s.title).join(', ')}`);

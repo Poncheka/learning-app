@@ -1,4 +1,4 @@
-# Learning App (placeholder name)
+# Pliny
 
 A personal iPhone app that suggests what to learn next, fits it to the minutes you have, and reads it aloud.
 

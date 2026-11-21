@@ -1,64 +1,32 @@
-import { Pressable, StyleSheet, Text, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+// 1. Open. The first thing you see: the name, the line, one button.
+import { router } from 'expo-router';
+import { StyleSheet, Text, View } from 'react-native';
 
-import { colors, spacing, type } from '@/theme';
+import { BigButton, Icon, Screen } from '@/components/ui';
+import { colors, fonts } from '@/theme';
 
-// The opening screen. The real name and spoken opening line are still undecided,
-// so this shows the placeholder name and a start button that does nothing yet.
-export default function StartScreen() {
+export default function Open() {
   return (
-    <SafeAreaView style={styles.screen}>
-      <View style={styles.center}>
-        <Text style={styles.title}>Learning App</Text>
-        <Text style={styles.subtitle}>to start</Text>
+    <Screen style={{ paddingBottom: 40 }}>
+      <View style={styles.disc} />
+      <View style={styles.bar} />
+      <View style={styles.star}>
+        <Icon name="star" size={44} />
       </View>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Start"
-        style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
-        onPress={() => {}}
-      >
-        <Text style={styles.buttonLabel}>Start</Text>
-      </Pressable>
-    </SafeAreaView>
+      <View style={{ flex: 1 }} />
+      <Text style={styles.name} accessibilityRole="header">
+        pliny<Text style={{ color: colors.vermilion }}>.</Text>
+      </Text>
+      <Text style={styles.line}>get lost in{'\n'}something</Text>
+      <BigButton label="Start" height={88} onPress={() => router.replace('/listen')} />
+    </Screen>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: colors.background,
-    padding: spacing.lg,
-  },
-  center: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: spacing.sm,
-  },
-  title: {
-    fontSize: type.title,
-    fontWeight: '700',
-    color: colors.text,
-    textAlign: 'center',
-  },
-  subtitle: {
-    fontSize: type.body,
-    color: colors.textSecondary,
-  },
-  button: {
-    backgroundColor: colors.accent,
-    borderRadius: 28,
-    paddingVertical: spacing.lg,
-    alignItems: 'center',
-    marginBottom: spacing.md,
-  },
-  buttonPressed: {
-    opacity: 0.8,
-  },
-  buttonLabel: {
-    fontSize: type.button,
-    fontWeight: '700',
-    color: colors.onAccent,
-  },
+  disc: { position: 'absolute', top: -110, right: -120, width: 360, height: 360, borderRadius: 180, backgroundColor: colors.vermilion },
+  bar: { position: 'absolute', top: 190, left: -30, width: 150, height: 26, backgroundColor: colors.yellow },
+  star: { position: 'absolute', top: 150, right: 60 },
+  name: { fontFamily: fonts.display, fontSize: 118, lineHeight: 118, letterSpacing: -7, color: colors.ink, marginBottom: -4 },
+  line: { fontFamily: fonts.serifItalic, fontSize: 46, lineHeight: 46, color: colors.ink, marginTop: 14, marginBottom: 40 },
 });
