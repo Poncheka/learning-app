@@ -4,3 +4,6 @@ project_id = "ctssexvgotcdbuvlkrou"
 # platform's built-in check only understands signed-in users, and there is no sign-in yet.
 [functions.prove-loop]
 verify_jwt = false
+
+[functions.lesson]
+verify_jwt = false
