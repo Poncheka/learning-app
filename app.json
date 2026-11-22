@@ -23,7 +23,17 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.poncheka.pliny"
+      "package": "com.poncheka.pliny",
+      "permissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
+      ]
     },
     "web": {
       "favicon": "./assets/images/favicon.png"
@@ -60,6 +70,9 @@
       "eas": {
         "projectId": "170e20a1-9c38-4ff5-9f86-0ec75a3ac462"
       }
+    },
+    "updates": {
+      "url": "https://u.expo.dev/170e20a1-9c38-4ff5-9f86-0ec75a3ac462"
     }
   }
 }

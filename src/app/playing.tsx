@@ -1,30 +1,79 @@
 // 6. Playing. Built to be used at a glance: one big pause button, everything else one tap away.
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { ActivityIndicator, PanResponder, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { PlayingArt } from '@/components/art';
 import { colorFor } from '@/components/covers';
 import { Display, Eyebrow, Icon, OutlineButton, RoundButton, Screen, SkipIcon, Wordmark } from '@/components/ui';
-import { clock, lessonProgress, usePlayer } from '@/state/player';
-import { colors, fonts } from '@/theme';
+import { clock, lessonProgress, reachable, usePlayer } from '@/state/player';
+import { colors, fonts, gutter } from '@/theme';
+
+/** Where a touch falls along the progress bar, from 0 at its left end to 1 at its right. */
+const at = (pageX: number, width: number) => Math.max(0, Math.min(1, (pageX - gutter) / width));
 
 export default function Playing() {
   const player = usePlayer();
-  const { phase, lesson, index, playing, buffering, rate, toggle, seekBy, cycleRate, finish } = player;
-  // Thumbs are remembered only on this screen for now. They start shaping suggestions in milestone 4.
-  const [thumb, setThumb] = useState<'up' | 'down' | null>(null);
+  const { phase, lesson, index, playing, buffering, rate, toggle, seekBy, scrubTo, cycleRate, finish } = player;
 
   useEffect(() => {
-    if (phase === 'finished') router.replace('/finished');
     if (phase === 'idle' || phase === 'error') router.replace('/listen');
   }, [phase]);
 
-  if (!lesson) return <Screen>{null}</Screen>;
-
   const { elapsed, total } = lessonProgress(player);
-  const share = total > 0 ? elapsed / total : 0;
-  const waiting = buffering && !playing;
+  const real = total > 0 ? elapsed / total : 0;
+
+  // Dragging the bar. While a finger is down the bar follows it. On letting go the audio
+  // moves there, and the bar holds its place for a moment until the player catches up.
+  const [drag, setDrag] = useState<number | null>(null);
+  const width = useWindowDimensions().width - gutter * 2;
+  const live = useRef({ width, total, scrubTo });
+  live.current = { width, total, scrubTo };
+  const settle = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const scrub = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => true,
+      onMoveShouldSetPanResponder: () => true,
+      onPanResponderTerminationRequest: () => false,
+      onPanResponderGrant: (e) => {
+        if (settle.current) clearTimeout(settle.current);
+        setDrag(at(e.nativeEvent.pageX, live.current.width));
+      },
+      onPanResponderMove: (e) => setDrag(at(e.nativeEvent.pageX, live.current.width)),
+      onPanResponderRelease: (e) => {
+        const share = at(e.nativeEvent.pageX, live.current.width);
+        live.current.scrubTo(share * live.current.total);
+        settle.current = setTimeout(() => setDrag(null), 900);
+      },
+      onPanResponderTerminate: () => setDrag(null),
+    }),
+  ).current;
+
+  // A lesson opened from the Library lands here before its details arrive. Hold the frame for a moment.
+  if (!lesson) {
+    return (
+      <Screen>
+        <View style={styles.top}>
+          <RoundButton label="Back" onPress={() => router.replace('/library')}>
+            <Icon name="down" size={22} />
+          </RoundButton>
+          <Wordmark />
+          <View style={{ width: 48 }} />
+        </View>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14 }}>
+          <ActivityIndicator color={colors.ink} size="large" />
+          <Eyebrow>{player.topic?.title ?? ''}</Eyebrow>
+        </View>
+      </Screen>
+    );
+  }
+
+  // How far along the bar there is finished audio to move through.
+  const open = total > 0 ? Math.min(1, reachable(player) / total) : 0;
+  const canSkipAhead = Boolean(player.made[index]);
+  const share = drag ?? real;
+  const shown = drag === null ? elapsed : drag * total;
+  const waiting = (buffering || phase === 'starting') && !playing;
 
   return (
     <Screen>
@@ -41,40 +90,50 @@ export default function Playing() {
         />
       </View>
 
-      <PlayingArt progress={share} color={colorFor(player.topic?.id ?? lesson.id)} />
+      <PlayingArt progress={real} playing={playing} color={colorFor(player.topic?.id ?? lesson.id)} />
 
       <Eyebrow style={{ marginBottom: 6 }}>{lesson.title}</Eyebrow>
       <Display size={34} style={{ minHeight: 66 }}>
         {lesson.segments[index].title.replace(/[.\s]+$/, '')}.
       </Display>
 
-      <View style={styles.track} accessibilityRole="progressbar" accessibilityValue={{ min: 0, max: 100, now: Math.round(share * 100) }}>
-        <View style={[styles.fill, { width: `${share * 100}%` }]} />
+      <View
+        {...scrub.panHandlers}
+        style={styles.scrub}
+        accessibilityRole="adjustable"
+        accessibilityLabel="Position in the lesson. Drag to move."
+        accessibilityValue={{ min: 0, max: 100, now: Math.round(share * 100) }}
+        accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }]}
+        onAccessibilityAction={(e) => seekBy(e.nativeEvent.actionName === 'increment' ? 15 : -15)}
+      >
+        <View style={styles.track} pointerEvents="none">
+          {/* The darker stretch is audio that is finished and can be moved through. */}
+          <View style={[styles.ready, { width: `${Math.max(open, real) * 100}%` }]} />
+          <View style={[styles.fill, { width: `${share * 100}%` }]} />
+        </View>
+        <View pointerEvents="none" style={[styles.knob, drag !== null && styles.knobHeld, { left: share * width }]} />
       </View>
       <View style={styles.times}>
-        <Text style={styles.time}>{clock(elapsed)}</Text>
+        <Text style={styles.time}>{clock(shown)}</Text>
         <Pressable accessibilityRole="button" accessibilityLabel={`Speed ${rate} times. Tap to change.`} onPress={cycleRate} hitSlop={10} style={styles.speed}>
           <Text style={styles.speedLabel}>{rate}× speed</Text>
         </Pressable>
-        <Text style={styles.time}>-{clock(total - elapsed)}</Text>
+        <Text style={[styles.time, { textAlign: 'right' }]}>-{clock(total - shown)}</Text>
       </View>
 
       <View style={styles.controls}>
-        <RoundButton label="Back 15 seconds" size={84} onPress={() => seekBy(-15)}>
+        <RoundButton label="Back 15 seconds" size={60} onPress={() => seekBy(-15)}>
           <SkipIcon />
         </RoundButton>
         <Pressable accessibilityRole="button" accessibilityLabel={playing ? 'Pause' : 'Play'} onPress={toggle} style={({ pressed }) => [styles.main, pressed && { opacity: 0.8 }]}>
           {waiting ? <ActivityIndicator color={colors.paper} size="large" /> : <Icon name={playing ? 'pause' : 'play'} size={42} color={colors.paper} />}
         </Pressable>
-        <RoundButton label="Forward 15 seconds" size={84} onPress={() => seekBy(15)}>
+        <RoundButton label={canSkipAhead ? 'Forward 15 seconds' : 'Forward 15 seconds. Not ready yet.'} size={60} disabled={!canSkipAhead} onPress={() => seekBy(15)}>
           <SkipIcon forward />
         </RoundButton>
       </View>
 
       <View style={styles.bottom}>
-        <RoundButton label="Thumbs down" size={60} fill={thumb === 'down' ? colors.ink : colors.white} onPress={() => setThumb(thumb === 'down' ? null : 'down')}>
-          <Icon name="thumbDown" weight={2} color={thumb === 'down' ? colors.paper : colors.ink} />
-        </RoundButton>
         <OutlineButton
           label={`Chapters ${index + 1} of ${lesson.segments.length}`}
           icon="list"
@@ -83,9 +142,6 @@ export default function Playing() {
           style={{ flex: 1, gap: 10 }}
           onPress={() => router.push('/chapters')}
         />
-        <RoundButton label="Thumbs up" size={60} fill={thumb === 'up' ? colors.ink : colors.white} onPress={() => setThumb(thumb === 'up' ? null : 'up')}>
-          <Icon name="thumbUp" weight={2} color={thumb === 'up' ? colors.paper : colors.ink} />
-        </RoundButton>
       </View>
     </Screen>
   );
@@ -93,13 +149,18 @@ export default function Playing() {
 
 const styles = StyleSheet.create({
   top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  track: { height: 6, borderRadius: 3, backgroundColor: colors.line, marginTop: 18, marginBottom: 6 },
+  // A tall, invisible strip around the thin bar, so a thumb can grab it without aiming.
+  scrub: { height: 36, justifyContent: 'center', marginTop: 4 },
+  track: { height: 6, borderRadius: 3, backgroundColor: colors.line },
+  knob: { position: 'absolute', top: 10, width: 16, height: 16, borderRadius: 8, marginLeft: -8, backgroundColor: colors.ink },
+  knobHeld: { top: 6, width: 24, height: 24, borderRadius: 12, marginLeft: -12, backgroundColor: colors.vermilion, borderWidth: 2, borderColor: colors.ink },
+  ready: { position: 'absolute', left: 0, top: 0, height: 6, borderRadius: 3, backgroundColor: colors.faint },
   fill: { height: 6, borderRadius: 3, backgroundColor: colors.ink },
   times: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   time: { fontFamily: fonts.body, fontSize: 13, color: colors.gray, minWidth: 48, fontVariant: ['tabular-nums'] },
   speed: { paddingHorizontal: 12, height: 28, borderRadius: 14, borderWidth: 1.5, borderColor: colors.ink, justifyContent: 'center', backgroundColor: colors.white },
   speedLabel: { fontFamily: fonts.bodySemi, fontSize: 13, color: colors.ink },
-  controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14, marginBottom: 22, marginHorizontal: 8 },
+  controls: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 28, marginTop: 14, marginBottom: 22 },
   main: { width: 104, height: 104, borderRadius: 52, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
   bottom: { flexDirection: 'row', alignItems: 'center', gap: 10 },
 });

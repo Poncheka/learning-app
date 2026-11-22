@@ -4,21 +4,26 @@ import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { BigButton, Em, Eyebrow, OutlineButton, Screen, Serif, Wordmark } from '@/components/ui';
+import { sendSignal } from '@/lib/api';
 import { usePlayer } from '@/state/player';
 import { colors, fonts } from '@/theme';
 
 export default function Finished() {
-  const { lesson, index, stop } = usePlayer();
-  // Remembered only on this screen for now. These start shaping suggestions in milestone 4.
+  const { lesson, stop } = usePlayer();
+  // The one place the listener says how it was. Saved against the lesson, and read back
+  // when Pliny chooses what to offer next.
   const [verdict, setVerdict] = useState<'loved' | 'no' | null>(null);
+  const give = (which: 'loved' | 'no') => {
+    const next = verdict === which ? null : which;
+    setVerdict(next);
+    sendSignal(next === 'loved' ? 'loved' : next === 'no' ? 'not_for_me' : 'cleared', lesson?.id);
+  };
 
-  const leave = (to: '/listen' | '/library') => {
+  const leave = (to: '/listen') => {
     stop();
     router.replace(to);
   };
 
-  const heard = lesson ? Math.min(index + 1, lesson.segments.length) : 0;
-  const all = lesson ? heard === lesson.segments.length : false;
 
   return (
     <Screen style={{ paddingBottom: 40 }}>
@@ -34,15 +39,12 @@ export default function Finished() {
       <Serif size={84} style={[styles.wrap, { marginTop: -16 }]}>
         <Em>a wrap.</Em>
       </Serif>
-      <Text style={styles.summary}>
-        {lesson ? (all ? `${lesson.chosen_minutes} minutes, ${lesson.segments.length} chapters.` : `${heard} of ${lesson.segments.length} chapters.`) : ''} What you heard is saved.
-      </Text>
+      <Text style={styles.summary}>Saved to your history, if you want to listen again.</Text>
       <View style={styles.verdicts}>
-        <OutlineButton label="Loved it" icon="thumbUp" height={64} textSize={17} selected={verdict === 'loved'} style={{ flex: 1, paddingHorizontal: 0 }} onPress={() => setVerdict(verdict === 'loved' ? null : 'loved')} />
-        <OutlineButton label="Not for me" icon="thumbDown" height={64} textSize={17} selected={verdict === 'no'} style={{ flex: 1, paddingHorizontal: 0 }} onPress={() => setVerdict(verdict === 'no' ? null : 'no')} />
+        <OutlineButton label="Loved it" icon="thumbUp" height={64} textSize={17} selected={verdict === 'loved'} style={{ flex: 1, paddingHorizontal: 0 }} onPress={() => give('loved')} />
+        <OutlineButton label="Not for me" icon="thumbDown" height={64} textSize={17} selected={verdict === 'no'} style={{ flex: 1, paddingHorizontal: 0 }} onPress={() => give('no')} />
       </View>
       <BigButton label="Pick the next one" onPress={() => leave('/listen')} />
-      <OutlineButton label="Back to library" height={56} textSize={17} fill="transparent" style={{ borderColor: 'transparent', marginTop: 10 }} onPress={() => leave('/library')} />
     </Screen>
   );
 }

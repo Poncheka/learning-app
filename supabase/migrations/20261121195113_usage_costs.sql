@@ -1,0 +1,4 @@
+-- Applied through the Supabase connector on 2026-11-21. See the usage_costs migration there
+-- for the full statement: the usage ledger gained kind, topic_id, lesson_id, position,
+-- cache_write_tokens, chars, audio_bytes, audio_seconds, voice and raw. A prices table and
+-- the views usage_costs, story_costs and lesson_costs were added.

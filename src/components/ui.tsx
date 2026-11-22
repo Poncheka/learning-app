@@ -15,6 +15,7 @@ import { colors, fonts, gutter } from '@/theme';
 const strokes = {
   arrow: 'M4 12h15M13 6l6 6-6 6',
   back: 'M15 5l-7 7 7 7',
+  chevron: 'M9 5l7 7-7 7',
   down: 'M6 9l6 6 6-6',
   check: 'M5 12l5 5 9-10',
   list: 'M4 6h16M4 12h16M4 18h10',
@@ -55,7 +56,7 @@ export function Icon({ name, size = 24, color = colors.ink, weight = 2.2 }: { na
 }
 
 /** The circular arrow with "15" inside, for skipping back or forward. */
-export function SkipIcon({ forward, size = 42 }: { forward?: boolean; size?: number }) {
+export function SkipIcon({ forward, size = 32 }: { forward?: boolean; size?: number }) {
   return (
     <Svg pointerEvents="none" width={size} height={size} viewBox="0 0 34 34" fill="none" stroke={colors.ink} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
       <G transform={forward ? 'translate(34 0) scale(-1 1)' : undefined}>
@@ -101,6 +102,17 @@ export function Display({ children, size = 44, color = colors.ink, style }: { ch
     <Text style={[{ fontFamily: fonts.display, fontSize: size, lineHeight: size, paddingTop: size * 0.12, letterSpacing: size * -0.042, textTransform: 'uppercase', color }, style]}>
       {children}
     </Text>
+  );
+}
+
+/** A small outlined label naming the interest a lesson grew out of. */
+export function TagLabel({ children }: { children: string }) {
+  return (
+    <View style={styles.tag}>
+      <Text style={styles.tagText} numberOfLines={1}>
+        {children}
+      </Text>
+    </View>
   );
 }
 
@@ -177,8 +189,8 @@ export function Screen({ children, style, flush }: { children: ReactNode; style?
 }
 
 const tabs = [
+  { key: 'library', label: 'History', icon: 'list', href: '/library' },
   { key: 'listen', label: 'Listen', icon: 'star', href: '/listen' },
-  { key: 'library', label: 'Library', icon: 'list', href: '/library' },
   { key: 'interests', label: 'Interests', icon: 'interests', href: '/interests' },
 ] as const;
 
@@ -202,6 +214,8 @@ export function TabBar({ active }: { active: (typeof tabs)[number]['key'] }) {
 
 const styles = StyleSheet.create({
   eyebrow: { fontFamily: fonts.bodySemi, fontSize: 12, letterSpacing: 2.5, textTransform: 'uppercase', color: colors.gray },
+  tag: { height: 22, borderRadius: 11, borderWidth: 1, borderColor: colors.gray, paddingHorizontal: 9, justifyContent: 'center', flexShrink: 1 },
+  tagText: { fontFamily: fonts.bodyMedium, fontSize: 11, letterSpacing: 0.4, textTransform: 'uppercase', color: colors.gray },
   big: { backgroundColor: colors.ink, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   bigLabel: { fontFamily: fonts.bodySemi, color: colors.paper },
   bigCircle: { backgroundColor: colors.yellow, alignItems: 'center', justifyContent: 'center' },

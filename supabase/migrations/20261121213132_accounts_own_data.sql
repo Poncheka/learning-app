@@ -1,0 +1,7 @@
+-- Applied through the Supabase connector on 2026-11-21 (migration accounts_own_data).
+-- interests, signals and lessons gained user_id (default auth.uid()), and rows made before
+-- accounts were given to the first person who signed in. New tables: dismissals (a swipe
+-- away is per person) and user_settings (narrator and suggested interests per person).
+-- Row level security policies: a signed-in person can touch only their own rows in
+-- interests, signals, lessons, segments (through their lessons), dismissals and
+-- user_settings, and may read topics. topics.proposed_for and usage.user_id were added.

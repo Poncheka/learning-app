@@ -1,11 +1,16 @@
-// 1. Open. The first thing you see: the name, the line, one button.
-import { router } from 'expo-router';
+// 1. Open. The first thing you see: the name, the line, and a slide to start.
+import { Redirect, router } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { BigButton, Icon, Screen } from '@/components/ui';
+import { SlideToStart } from '@/components/SlideToStart';
+import { Icon, Screen } from '@/components/ui';
+import { useSession } from '@/state/session';
 import { colors, fonts } from '@/theme';
 
 export default function Open() {
+  // Signed out, the first screen is the sign-in one instead.
+  const out = useSession((s) => s.status === 'out');
+  if (out) return <Redirect href="/welcome" />;
   return (
     <Screen style={{ paddingBottom: 40 }}>
       <View style={styles.disc} />
@@ -18,7 +23,7 @@ export default function Open() {
         pliny<Text style={{ color: colors.vermilion }}>.</Text>
       </Text>
       <Text style={styles.line}>get lost in{'\n'}something</Text>
-      <BigButton label="Start" height={88} onPress={() => router.replace('/listen')} />
+      <SlideToStart onDone={() => router.replace('/listen')} />
     </Screen>
   );
 }

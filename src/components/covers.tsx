@@ -4,7 +4,7 @@
 // its look every time the screen redraws. Because topics come and go, the Listen screen
 // still looks fresh. Two rules from the artwork's own notes are kept: no background shows
 // twice at once, and cards next to each other never share a background color.
-import { StyleSheet } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { SvgXml } from 'react-native-svg';
 
 import { cardBackgrounds, type CardBackground } from '@/components/cardBackgrounds';
@@ -39,6 +39,19 @@ export function colorFor(id: string): string {
   const { background } = cardBackgrounds[hash(id) % cardBackgrounds.length];
   // Paper and ink are the page itself, so they would not read as a color.
   return background === colors.paper || background === colors.ink ? colors.vermilion : background;
+}
+
+/**
+ * A small square of a background's artwork, for the Library. The drawings keep their
+ * shapes in the right hand end, so the square is cut from there: pattern, not flat color.
+ */
+export function CoverTile({ id, size }: { id: string; size: number }) {
+  const background = cardBackgrounds[hash(id) % cardBackgrounds.length];
+  return (
+    <View style={{ width: size, height: size, overflow: 'hidden', backgroundColor: background.background }}>
+      <SvgXml xml={background.xml} width={(size * 684) / 300} height={size} style={{ position: 'absolute', top: 0, right: 0 }} pointerEvents="none" />
+    </View>
+  );
 }
 
 /** Fills its parent with a background, cropped to cover, the way the artwork was drawn to be used. */

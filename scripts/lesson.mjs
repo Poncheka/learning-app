@@ -109,7 +109,9 @@ try {
     const prepareStarted = Date.now();
     const ticker = setInterval(() => process.stdout.write(`\r  Working... ${Math.round((Date.now() - prepareStarted) / 1000)}s `), 1000);
     try {
-      topic = await call({ action: 'prepare', topic: typedTopic });
+      // Two steps, each its own request: plan the story, then review it and write the opening.
+      const planned = await call({ action: 'prepare', topic: typedTopic, force: true });
+      topic = await call({ action: 'finish', topic_id: planned.id });
     } finally {
       clearInterval(ticker);
       process.stdout.write('\r');

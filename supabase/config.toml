@@ -7,3 +7,9 @@ verify_jwt = false
 
 [functions.lesson]
 verify_jwt = false
+
+[functions.shelf]
+verify_jwt = false
+
+[functions.open-app]
+verify_jwt = false
