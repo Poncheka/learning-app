@@ -12,10 +12,19 @@ import { dismissIdea, listIdeas, queueIdea, type Idea } from '@/lib/api';
 import { colors, fonts, gutter } from '@/theme';
 
 const TILE = 76;
+// What was last read, kept while the app is open, so coming back to this tab shows it at once.
+let kept: { ideas: Idea[]; tags: string[] } | null = null;
 type Banner = { title: string; note: string } | null;
 
 export default function Explore() {
-  const [ideas, setIdeas] = useState<Idea[] | null>(null);
+  const [ideas, setIdeasNow] = useState<Idea[] | null>(kept?.ideas ?? null);
+  const [tags, setTags] = useState<string[]>(kept?.tags ?? []);
+  const setIdeas = (next: Idea[] | ((had: Idea[] | null) => Idea[])) =>
+    setIdeasNow((had) => {
+      const value = typeof next === 'function' ? next(had) : next;
+      if (kept) kept = { ...kept, ideas: value };
+      return value;
+    });
   const [filter, setFilter] = useState<string | null>(null);
   const [banner, setBanner] = useState<Banner>(null);
   const hide = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -28,7 +37,11 @@ export default function Explore() {
 
   const look = useCallback(() => {
     listIdeas()
-      .then((found) => setIdeas(found.ideas))
+      .then((found) => {
+        kept = { ideas: found.ideas, tags: found.tags ?? [] };
+        setIdeasNow(found.ideas);
+        setTags(found.tags ?? []);
+      })
       .catch(() => setIdeas((had) => had ?? []));
   }, []);
 
@@ -61,13 +74,17 @@ export default function Explore() {
     dismissIdea(idea.id).catch(() => {});
   };
 
-  const tags = [...new Set((ideas ?? []).map((i) => i.tag).filter((t): t is string => Boolean(t) && t !== 'Off the map'))];
-  const shown = (ideas ?? []).filter((i) => !filter || i.tag === filter);
+  // An interest that has since been removed no longer filters anything.
+  const chosen = filter && tags.includes(filter) ? filter : null;
+  const shown = (ideas ?? []).filter((i) => !chosen || i.tag === chosen);
 
   return (
     <Screen flush>
       <View style={styles.top}>
         <Wordmark />
+        <Pressable accessibilityRole="link" onPress={() => router.push('/interests')} hitSlop={12}>
+          <Text style={styles.editText}>Edit interests</Text>
+        </Pressable>
       </View>
       <Serif size={40} style={styles.heading}>
         Pick what comes <Em>next.</Em>
@@ -75,7 +92,7 @@ export default function Explore() {
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.chips} contentContainerStyle={styles.chipRow}>
         {[null, ...tags].map((tag) => {
-          const on = filter === tag;
+          const on = chosen === tag;
           return (
             <Pressable key={tag ?? 'all'} accessibilityRole="button" accessibilityState={{ selected: on }} onPress={() => setFilter(tag)} style={[styles.chip, on && styles.chipOn]}>
               <Text style={[styles.chipText, on && { color: colors.paper }]}>{tag ?? 'All'}</Text>
@@ -83,9 +100,7 @@ export default function Explore() {
           );
         })}
       </ScrollView>
-      <Pressable accessibilityRole="link" onPress={() => router.push('/interests')} style={styles.edit} hitSlop={10}>
-        <Text style={styles.editText}>Edit interests</Text>
-      </Pressable>
+      <View style={{ height: 12 }} />
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
         {ideas === null ? <ActivityIndicator color={colors.ink} style={{ marginTop: 40 }} /> : null}
@@ -107,7 +122,7 @@ export default function Explore() {
             <Serif size={28} style={{ textAlign: 'center' }}>
               More ideas <Em>soon.</Em>
             </Serif>
-            <Text style={styles.note}>{filter ? 'Nothing under that interest right now. Try All.' : 'Pliny is thinking up new ideas from your interests. They appear here within a few minutes.'}</Text>
+            <Text style={styles.note}>{chosen ? 'Nothing under that interest yet. New ideas for it arrive within a few minutes.' : 'Pliny is thinking up new ideas from your interests. They appear here within a few minutes.'}</Text>
           </View>
         ) : null}
       </ScrollView>
@@ -134,7 +149,6 @@ const styles = StyleSheet.create({
   chip: { height: 44, paddingHorizontal: 18, borderRadius: 22, borderWidth: 1.5, borderColor: colors.ink, backgroundColor: colors.white, justifyContent: 'center' },
   chipOn: { backgroundColor: colors.ink },
   chipText: { fontFamily: fonts.bodySemi, fontSize: 15, color: colors.ink },
-  edit: { alignSelf: 'flex-start', marginHorizontal: gutter, marginTop: 14, marginBottom: 12 },
   editText: { fontFamily: fonts.bodySemi, fontSize: 15, color: colors.ink, textDecorationLine: 'underline' },
   scroll: { flex: 1, minHeight: 0 },
   list: { paddingHorizontal: gutter, paddingBottom: 12, gap: 8 },

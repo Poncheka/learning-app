@@ -161,7 +161,7 @@ export async function hideLesson(id: string): Promise<void> {
 /** "Not interested": takes a topic off the Listen screen for good. */
 /** An idea for a story, on offer in Explore. Nothing has been made from it yet. */
 export type Idea = { id: string; title: string; tag: string | null };
-export type Ideas = { ideas: Idea[]; queued_today: number; per_day: number; waiting: number; waiting_limit: number; preparing: number };
+export type Ideas = { ideas: Idea[]; tags?: string[]; queued_today: number; per_day: number; waiting: number; waiting_limit: number; preparing: number };
 
 export async function listIdeas(): Promise<Ideas> {
   if (MOCK) return { ideas: [], queued_today: 0, per_day: 10, waiting: 0, waiting_limit: 3, preparing: 0 };

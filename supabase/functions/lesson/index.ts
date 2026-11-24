@@ -1303,7 +1303,7 @@ const DAILY_NEW = 10;
 // At most this many stories are being prepared at once, across everyone.
 const SIDE_BY_SIDE = 3;
 // How many ideas are kept on offer in Explore for each listener. Ideas cost almost nothing to think up.
-const IDEAS_KEPT = 15;
+const IDEAS_KEPT = 40;
 
 /**
  * The scheduled job. Once a minute it does one piece of preparation for whichever recently active

@@ -34,7 +34,7 @@ function Card({ topic, background, lead, isNew, onPress, onAway }: { topic: Topi
         onPress={onPress}
         style={({ pressed }) => [styles.card, lead ? styles.leadCard : styles.smallCard, { backgroundColor: background.background }, pressed && { opacity: 0.85 }]}
       >
-        <CardArt background={background} />
+        <CardArt background={background} top={lead ? '64%' : '52%'} />
         {isNew ? <Text style={[styles.new, { color: background.text }]}>NEW</Text> : null}
         <Text style={[styles.title, lead ? styles.leadTitle : styles.smallTitle, sized(title, Boolean(lead)), { color: background.text }]} numberOfLines={lead ? 4 : 5}>
           {title}.
@@ -78,7 +78,7 @@ export default function Listen() {
   // A story that arrived while the app was open takes the lead, marked New. The rest keep the server's order.
   const arrived = new Set(fresh);
   const shown = [...topics.filter((t) => arrived.has(t.id)), ...topics.filter((t) => !arrived.has(t.id))].slice(0, 7);
-  const backgrounds = pickBackgrounds(shown.map((t) => t.id));
+  const backgrounds = pickBackgrounds(shown.map((t) => t.id), true);
   const rest = shown.slice(1);
   const rows: number[][] = [];
   for (let i = 0; i < rest.length; i += 2) rows.push(rest[i + 1] ? [i + 1, i + 2] : [i + 1]);
@@ -162,7 +162,7 @@ const styles = StyleSheet.create({
   new: { position: 'absolute', top: 16, left: 20, fontFamily: fonts.bodyMedium, fontSize: 12, letterSpacing: 2.5 },
   title: { fontFamily: fonts.display, letterSpacing: -1, textTransform: 'uppercase' },
   // Every background keeps its artwork toward the top right, so the title holds to the lower left.
-  leadTitle: { maxWidth: '78%' },
+  leadTitle: { maxWidth: '88%' },
   smallTitle: { maxWidth: '96%', letterSpacing: -0.6 },
   tag: { alignSelf: 'flex-start', marginTop: 8, height: 24, borderRadius: 12, borderWidth: 1.5, paddingHorizontal: 10, justifyContent: 'center', maxWidth: '100%' },
   leadTag: { marginTop: 12, height: 28, borderRadius: 14, paddingHorizontal: 12 },

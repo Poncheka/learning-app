@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { NowPlayingBar } from '@/components/NowPlayingBar';
-import { Em, Eyebrow, OutlineButton, Screen, Serif, TabBar, Wordmark } from '@/components/ui';
+import { Em, Eyebrow, Icon, OutlineButton, RoundButton, Screen, Serif, TabBar, Wordmark } from '@/components/ui';
 import { addInterest, getInterests, removeInterest, type Interests as InterestsData } from '@/lib/api';
 import { colors, fonts, gutter } from '@/theme';
 
@@ -64,10 +64,13 @@ export default function Interests() {
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
           <View style={styles.top}>
+            <RoundButton label="Back to Explore" onPress={() => router.replace('/explore')}>
+              <Icon name="back" size={22} />
+            </RoundButton>
             <Wordmark />
             <OutlineButton label="Settings" height={40} textSize={14} style={{ paddingHorizontal: 16 }} onPress={() => router.push('/settings')} />
           </View>
-          <Serif style={{ marginTop: 18 }}>
+          <Serif size={38} style={{ marginTop: 18, paddingRight: 6 }}>
             What are you <Em>into?</Em>
           </Serif>
           <Text style={styles.lead}>{full ? `You have all ${max}.` : `Add up to ${max} tags.`}</Text>

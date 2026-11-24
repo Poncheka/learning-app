@@ -53,7 +53,9 @@ const PROPOSER_BRIEF =
   "Reply with only a JSON array of objects, each shaped {\"title\": string, \"tag\": string, \"card\": string}. The title is the " +
   "subject as named above. The card is a headline for it that the listener sees before anything is researched: nine " +
   "words at most, shaped 'The [someone or something] that [did the absurd thing]', with 'who' for a person, and " +
-  "promising nothing you are not sure is true. The tag is the one interest from their list that the subject grew out of, " +
+  "promising nothing you are not sure is true. The card must hold the surprising part itself, not hint at it: " +
+  "'The philosopher who searched for an honest man' only describes, while 'The philosopher who lived in a jar and told " +
+  "Alexander to move' makes someone want to hear it. The tag is the one interest from their list that the subject grew out of, " +
   "copied exactly as it was given to you, in the same order. For a subject that wanders off their map, the tag is \"Off the map\".";
 
 // The narrators offered in Settings. Each id is a voice the lesson function accepts.
@@ -160,6 +162,8 @@ async function propose() {
   // more ideas of their own are thought up.
   // The scheduled job keeps a stock of ideas for Explore, so for it having some already is no reason to stop.
   const stocking = Boolean((who.getStore() as any)?.fill);
+  // Stocking Explore asks for more at a time, so every interest gets its share sooner.
+  const batch = stocking ? 6 : READY_TARGET;
   if (!stocking && (own.some((t: any) => t.status === "proposed") || (own.length >= OWN_TARGET && unplayed.length >= ((who.getStore() as any)?.reserve ? 6 : READY_TARGET)))) return json({ proposed: [] });
   // Someone with no interests yet listens from the shared shelf. Nothing is made for them until they pick some.
   if (labels.length === 0 && unplayed.length >= ((who.getStore() as any)?.reserve ? 6 : READY_TARGET)) return json({ proposed: [] });
@@ -195,9 +199,9 @@ async function propose() {
     .map((label) => ({ label, count: served.get(label.toLowerCase()) ?? 0, tie: Math.random() }))
     .sort((a, b) => a.count - b.count || a.tie - b.tie)
     .map((t) => t.label);
-  const slots: string[] = turns.slice(0, READY_TARGET);
-  while (slots.length < READY_TARGET) slots.push("Off the map");
-  if (labels.length >= READY_TARGET && Math.random() < 0.5) slots[READY_TARGET - 1] = "Off the map";
+  const slots: string[] = turns.slice(0, batch);
+  while (slots.length < batch) slots.push("Off the map");
+  if (labels.length >= batch && Math.random() < 0.5) slots[batch - 1] = "Off the map";
 
   const res = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
@@ -210,7 +214,7 @@ async function propose() {
         `Loved: ${liked.join("; ") || "nothing rated yet"}\n` +
         `Turned down or swiped away: ${disliked.join("; ") || "nothing yet"}\n` +
         `Already offered: ${(seen ?? []).map((t) => (t.title && t.title !== t.asked ? `${t.asked} (${t.title})` : t.asked)).join("; ") || "nothing yet"}\n` +
-        `Propose ${READY_TARGET} topics, one for each of these, in this order:\n${slots.map((s, i) => `${i + 1}. ${s}`).join("\n")}`,
+        `Propose ${batch} topics, one for each of these, in this order:\n${slots.map((s, i) => `${i + 1}. ${s}`).join("\n")}`,
     }),
   });
   if (!res.ok) return json({ error: "Topics could not be proposed.", detail: (await res.text()).slice(0, 300) }, 502);
@@ -232,7 +236,7 @@ async function propose() {
         tag: labels.find((l) => l.toLowerCase() === String(t?.tag ?? "").trim().toLowerCase()) ?? (slots[i] && slots[i] !== "Off the map" ? slots[i] : "Off the map"),
       }))
       .filter((t) => t.title.length > 0 && !offered.has(plain(t.title)))
-      .slice(0, READY_TARGET);
+      .slice(0, batch);
   } catch {
     return json({ error: "The proposed topics could not be read." }, 502);
   }
@@ -266,8 +270,14 @@ async function queueState() {
 async function ideas() {
   const { data } = await service.from("topics").select("id, title, tag").eq("proposed_for", me()).eq("status", "proposed").is("queued_at", null).order("proposed_at", { ascending: false }).limit(40);
   const state = await queueState();
+  // The chips in Explore are the person's interests as they stand now. An idea from an interest
+  // they have since removed is no longer offered.
+  const { data: tags } = await service.from("interests").select("label").eq("hidden", false).eq("user_id", me()).order("created_at");
+  const labels = (tags ?? []).map((t: any) => String(t.label));
+  const kept = new Set(labels.map((l: string) => l.toLowerCase()));
   return {
-    ideas: (data ?? []).map((t: any) => ({ id: t.id, title: t.title, tag: t.tag ?? null })),
+    tags: labels,
+    ideas: (data ?? []).filter((t: any) => !t.tag || t.tag === "Off the map" || kept.has(String(t.tag).toLowerCase())).map((t: any) => ({ id: t.id, title: t.title, tag: t.tag ?? null })),
     queued_today: state.today,
     per_day: QUEUE_PER_DAY,
     waiting: state.waiting,
