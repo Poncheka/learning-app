@@ -498,7 +498,10 @@ async function narrator(owner?: string | null): Promise<{ voice: string; directi
   let asked = db.from("user_settings").select("value").eq("key", "voice");
   if (owner) asked = asked.eq("user_id", owner);
   const { data } = await asked.limit(1).maybeSingle();
-  const voice = typeof data?.value === "string" && data.value.trim() ? data.value.trim() : VOICE;
+  const chosen = typeof data?.value === "string" && data.value.trim() ? data.value.trim() : VOICE;
+  // One narrator for everyone, so a recording made for one listener can be played to the next.
+  // Setting voice_lock to "off" in the settings table gives each listener their own choice back.
+  const voice = (await setting("voice_lock", "cedar")) === "off" ? chosen : "cedar";
   return { voice: VOICES.includes(voice) ? voice : VOICE, direction: await setting("narrator_direction", VOICE_STYLE) };
 }
 
@@ -1264,11 +1267,13 @@ function describeTopic(topic: any) {
 async function unplayedTopics(): Promise<any[]> {
   // Stories are shared, but which ones a person has played or swiped away is their own. Read
   // as that person, the lessons and dismissals that come back are only theirs.
-  const { data } = await mine().from("topics").select("*, lessons(id), dismissals(topic_id)").eq("status", "ready").order("prepared_at", { ascending: false }).limit(60);
-  const open = (data ?? []).filter((t: any) => (t.lessons ?? []).length === 0 && (t.dismissals ?? []).length === 0);
+  const { data } = await mine().from("topics").select("*, lessons(id, user_id), dismissals(topic_id, user_id)").eq("status", "ready").order("prepared_at", { ascending: false }).limit(60);
+  // The scheduled job reads on a person's behalf without their pass, so "theirs" is also checked here by name.
+  const theirs = (rows: any[] | null) => (rows ?? []).filter((r: any) => !me() || r.user_id === me());
+  const open = (data ?? []).filter((t: any) => theirs(t.lessons).length === 0 && theirs(t.dismissals).length === 0);
   if (!me()) return open;
   // Stories thought up for this person come first, then ones that match their interests, then the rest.
-  const { data: tags } = await db.from("interests").select("label").eq("hidden", false);
+  const { data: tags } = await db.from("interests").select("label").eq("hidden", false).eq("user_id", me());
   const labels = new Set((tags ?? []).map((t: any) => String(t.label).toLowerCase()));
   const rank = (t: any) => (t.proposed_for === me() ? 0 : labels.has(String(t.tag ?? "").toLowerCase()) ? 1 : 2);
   return open
@@ -1289,6 +1294,54 @@ const READY_TARGET = 3;
 // How many stories made from a person's own interests are kept ready or on their way. The
 // rest of their Listen screen is filled from stories already made for others.
 const OWN_TARGET = 1;
+// The reserve: how many finished stories a listener has not heard yet are kept available to them by
+// the scheduled job, with the app closed. Most come from the shared catalog. New ones are made only
+// when the catalog runs short for that person.
+const RESERVE = 6;
+// At most this many new stories are made for one person in a day, however fast they swipe.
+const DAILY_NEW = 10;
+// At most this many stories are being prepared at once, across everyone.
+const SIDE_BY_SIDE = 3;
+
+/**
+ * The scheduled job. Once a minute it does one piece of preparation for whichever recently active
+ * listener is short of stories. No phone is involved. Setting "reserve" to "off" in the settings
+ * table stops it at once, with no redeploy.
+ */
+async function tick() {
+  if ((await setting("reserve", "on")) === "off") return;
+  const secret = await setting("cron_secret", "");
+  const week = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const day = new Date(Date.now() - 86_400_000).toISOString();
+  // Recently active: listened in the last week, or joined in the last two days.
+  const { data: heard } = await service.from("lessons").select("user_id").gt("started_at", week).limit(2000);
+  const ids = new Set<string>((heard ?? []).map((l: any) => l.user_id).filter(Boolean));
+  const { data: joined } = await service.auth.admin.listUsers({ page: 1, perPage: 200 }).catch(() => ({ data: null as any }));
+  for (const u of joined?.users ?? []) if (Date.now() - Date.parse(u.created_at) < 2 * 86_400_000) ids.add(u.id);
+
+  for (const id of ids) {
+    const { count: made } = await service.from("topics").select("id", { count: "exact", head: true }).eq("proposed_for", id).gt("proposed_at", day).in("status", ["ready", "preparing", "failed"]);
+    const seat: Record<string, unknown> = { user_id: id, client: service, reserve: true, capped: (made ?? 0) >= DAILY_NEW };
+    await who.run(seat, async () => {
+      try {
+        let step: any = await refill();
+        if (step?.needs_proposals && !seat.capped) {
+          // No idea is waiting for this person. Think some up as them, then try again.
+          await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/shelf`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json", apikey: allowedKeys()[0] ?? "", "x-pliny-cron": secret },
+            body: JSON.stringify({ action: "propose", as_user: id }),
+          }).catch(() => null);
+          step = await refill();
+        }
+      } catch (err) {
+        console.log("tick:", err instanceof Problem ? `${err.message} ${err.detail ?? ""}` : String(err));
+      }
+    });
+    // One piece of real work per run. The next run, a minute later, takes the next piece.
+    if (seat.worked) break;
+  }
+}
 
 const strings = (value: unknown): string[] => (Array.isArray(value) ? value.filter((v): v is string => typeof v === "string" && v.trim().length > 0) : []);
 
@@ -1438,6 +1491,7 @@ async function refill() {
     // Measured on 23 Nov: run on OpenAI's side, the plan took 270 seconds against about 100 done directly.
     // So both long calls are made directly again, and the "prepare" function gives them a fresh worker.
     // Setting plan_mode to "later" in the settings table goes back to OpenAI's side, with no redeploy.
+    mark({ worked: true });
     if ((await setting("plan_mode", "direct")) !== "later") return { ready: ready + 1, prepared: await finishTopic(mine), working: true };
     try {
       // Start the review on OpenAI's side. The next request collects it and writes the opening.
@@ -1453,8 +1507,12 @@ async function refill() {
 
   // A ready story made by the newer writer gets its second chapter written ahead, one story per
   // call. If the listener starts it first, that chapter is simply written when it is asked for.
-  const waiting = unplayed.find((t: any) => t.story?.engine === 2 && !t.story.second);
+  const reserve = Boolean((who.getStore() as any)?.reserve);
+  const want = reserve ? RESERVE : READY_TARGET;
+  // For the reserve, only the stories this person would be shown get their next chapter written ahead.
+  const waiting = (reserve ? unplayed.slice(0, RESERVE) : unplayed).find((t: any) => t.story?.engine === 2 && !t.story.second);
   if (waiting) {
+    mark({ worked: true });
     try {
       await writeSecond(waiting.id);
     } catch {
@@ -1473,9 +1531,15 @@ async function refill() {
   const readyMine = unplayed.filter((t: any) => t._rank === undefined || t._rank < 2).length;
   // Enough means both: at least one story of their own, and a full screen of three. Shared
   // stories fill the screen where there are some. Where there are not, more of their own are made.
-  const enough = me() ? readyMine + (count ?? 0) >= OWN_TARGET && ready + (count ?? 0) >= READY_TARGET : ready + (count ?? 0) >= READY_TARGET;
+  const enough = me() ? readyMine + (count ?? 0) >= OWN_TARGET && ready + (count ?? 0) >= want : ready + (count ?? 0) >= want;
   if (enough) return { ready, prepared: null, working: (count ?? 0) > 0 };
 
+  if (reserve) {
+    // The day's ceiling for this person, and the limit on how much is prepared at once for everyone.
+    if ((who.getStore() as any)?.capped) return { ready, prepared: null, working: false };
+    const { count: busy } = await db.from("topics").select("id", { count: "exact", head: true }).eq("status", "preparing");
+    if ((busy ?? 0) >= SIDE_BY_SIDE) return { ready, prepared: null, working: true };
+  }
   // Ideas thought up for this person come first. Ones thought up for someone else are theirs to prepare.
   const { data: ideas } = await db.from("topics").select().eq("status", "proposed").order("proposed_at").limit(30);
   const next = (ideas ?? []).find((t: any) => t.proposed_for === me()) ?? null;
@@ -1490,6 +1554,7 @@ async function refill() {
     .select()
     .maybeSingle();
   if (!claimed) return { ready, prepared: null, working: true };
+  mark({ worked: true });
   await planTopic(claimed.asked, claimed, false, undefined, (await setting("plan_mode", "direct")) === "later");
   return { ready, prepared: null, working: true };
 }
@@ -1988,6 +2053,14 @@ async function handle(req: Request): Promise<Response> {
 
   try {
     if (body.action === "check") return json(await check(body.titles));
+    if (body.action === "tick") {
+      // Only the scheduler may ask for this, and it proves itself with a secret kept in the settings table.
+      const secret = await setting("cron_secret", "");
+      if (!secret || req.headers.get("x-pliny-cron") !== secret) throw new Problem(401, "Not allowed.");
+      // Answer at once and do the work afterwards: the scheduler does not wait around for it.
+      EdgeRuntime.waitUntil(who.run({}, () => tick()).catch((err) => console.log("tick failed:", String(err))));
+      return json({ ok: true });
+    }
     if (!me()) throw new Problem(401, "Sign in to use Pliny.");
     if (body.action === "topics") return json(await listTopics());
     if (body.action === "lessons") return json(await listLessons());

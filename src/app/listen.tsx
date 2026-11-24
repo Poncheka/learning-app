@@ -1,52 +1,87 @@
-// 2. Listen. A few topics, shown large. Tap one, or let Pliny pick.
+// 2. Listen. Finished stories only, shown large: one lead card, then rows of two. Tap one to hear it.
 import { router } from 'expo-router';
 import { useEffect } from 'react';
-import { ActivityIndicator, AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { CardArt, pickBackgrounds } from '@/components/covers';
+import type { CardBackground } from '@/components/cardBackgrounds';
 import { NowPlayingBar } from '@/components/NowPlayingBar';
 import { SwipeAway } from '@/components/SwipeAway';
 import { Em, OutlineButton, Screen, Serif, TabBar, Wordmark } from '@/components/ui';
 import type { Topic } from '@/lib/api';
-import { WAITING, useTopics } from '@/state/topics';
+import { useTopics } from '@/state/topics';
 import { colors, fonts, gutter } from '@/theme';
 
-// The smallest a card is ever drawn. Below this the artwork and the title collide.
-const CARD = 118;
+// How often the screen quietly looks for stories the server has finished since it last looked.
+const LOOK_EVERY = 20000;
 
 /** Short titles are set large. Longer ones step down a size, so they stay readable and fit. */
-function sized(title: string) {
+function sized(title: string, lead: boolean) {
   // A long single word also steps the size down, so it is never broken across two lines.
   const longest = Math.max(...title.split(/\s+/).map((word) => word.length));
-  const size = longest >= 12 ? 21 : title.length <= 26 && longest < 10 ? 27 : title.length <= 38 ? 24 : 21;
+  const size = lead ? (longest >= 12 || title.length > 44 ? 24 : title.length <= 30 ? 30 : 27) : longest >= 11 || title.length > 40 ? 15 : title.length <= 26 ? 18 : 16;
   return { fontSize: size, lineHeight: size };
 }
 
-export default function Listen() {
-  const { topics, loading, error, refilling, stuck, load, topUp, select, dismiss } = useTopics();
+function Card({ topic, background, lead, isNew, onPress, onAway }: { topic: Topic; background: CardBackground; lead?: boolean; isNew?: boolean; onPress: () => void; onAway: () => void }) {
+  const title = topic.title.replace(/[.\s]+$/, '');
+  return (
+    <SwipeAway label="Not interested" onAway={onAway} style={lead ? styles.leadSlot : styles.smallSlot}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${isNew ? 'New. ' : ''}${topic.title}`}
+        accessibilityHint={topic.hook}
+        onPress={onPress}
+        style={({ pressed }) => [styles.card, lead ? styles.leadCard : styles.smallCard, { backgroundColor: background.background }, pressed && { opacity: 0.85 }]}
+      >
+        <CardArt background={background} />
+        {isNew ? <Text style={[styles.new, { color: background.text }]}>NEW</Text> : null}
+        <Text style={[styles.title, lead ? styles.leadTitle : styles.smallTitle, sized(title, Boolean(lead)), { color: background.text }]} numberOfLines={lead ? 4 : 5}>
+          {title}.
+        </Text>
+        {/* The interest it grew out of, so the kind of story is clear at a glance. Wildcards show none. */}
+        {topic.tag && topic.tag !== 'Off the map' ? (
+          <View style={[styles.tag, lead && styles.leadTag, { borderColor: background.text }]}>
+            <Text style={[styles.tagText, lead && styles.leadTagText, { color: background.text }]} numberOfLines={1}>
+              {topic.tag}
+            </Text>
+          </View>
+        ) : null}
+      </Pressable>
+    </SwipeAway>
+  );
+}
 
-  // Load what is waiting, then quietly ask for more if there are fewer than three.
+export default function Listen() {
+  const { topics, loading, error, fresh, load, refresh, select, dismiss } = useTopics();
+
+  // Read what is ready, then keep an eye out: when the app comes back to the front, and every so often while this screen is up.
   useEffect(() => {
-    load().then(topUp);
-    // Coming back to the app picks the preparing up again: a phone that was asleep drops what it was waiting for.
+    load();
     const back = AppState.addEventListener('change', (state) => {
-      if (state === 'active') load().then(topUp);
+      if (state === 'active') refresh();
     });
-    return () => back.remove();
-  }, [load, topUp]);
+    const look = setInterval(() => {
+      if (AppState.currentState === 'active') refresh();
+    }, LOOK_EVERY);
+    return () => {
+      back.remove();
+      clearInterval(look);
+    };
+  }, [load, refresh]);
 
   const choose = (topic: Topic) => {
     select(topic);
     router.push('/length');
   };
 
-  // While a story from this person's own interests is being made and none is showing yet,
-  // one place is kept for it, so it is plain that something of theirs is coming.
-  const making = refilling && !topics.slice(0, WAITING).some((t) => t.for_you);
-  const shown = topics.slice(0, making ? WAITING - 1 : WAITING);
+  // A story that arrived while the app was open takes the lead, marked New. The rest keep the server's order.
+  const arrived = new Set(fresh);
+  const shown = [...topics.filter((t) => arrived.has(t.id)), ...topics.filter((t) => !arrived.has(t.id))].slice(0, 7);
   const backgrounds = pickBackgrounds(shown.map((t) => t.id));
-  // Slots with no topic yet show that one is on its way, so the screen never looks broken.
-  const onTheWay = refilling ? WAITING - shown.length : 0;
+  const rest = shown.slice(1);
+  const rows: number[][] = [];
+  for (let i = 0; i < rest.length; i += 2) rows.push(rest[i + 1] ? [i + 1, i + 2] : [i + 1]);
 
   return (
     <Screen flush>
@@ -54,65 +89,43 @@ export default function Listen() {
         <Wordmark />
       </View>
       <Serif size={40} style={styles.question}>
-        What are you <Em>curious</Em> about today?
+        Get lost in <Em>something.</Em>
       </Serif>
 
       {/* Cards share the room when it all fits. When it does not, they keep their size and the list scrolls. */}
       <ScrollView style={styles.scroll} contentContainerStyle={styles.cards} showsVerticalScrollIndicator={false}>
-        {shown.map((topic, i) => (
-          <SwipeAway key={topic.id} label="Not interested" onAway={() => dismiss(topic)} style={styles.slot}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={topic.title}
-            accessibilityHint={topic.hook}
-            onPress={() => choose(topic)}
-            style={({ pressed }) => [styles.card, { backgroundColor: backgrounds[i].background }, pressed && { opacity: 0.85 }]}
-          >
-            <CardArt background={backgrounds[i]} />
-            <Text style={[styles.title, sized(topic.title), { color: backgrounds[i].text }]} numberOfLines={4}>
-              {topic.title.replace(/[.\s]+$/, '')}.
-            </Text>
-            {/* The interest it grew out of, so the kind of story is clear at a glance. Wildcards show none. */}
-            {topic.tag && topic.tag !== 'Off the map' ? (
-              <View style={[styles.genre, { borderColor: backgrounds[i].text, backgroundColor: backgrounds[i].background }]}>
-                <Text style={[styles.genreText, { color: backgrounds[i].text }]} numberOfLines={1}>
-                  {topic.tag}
-                </Text>
-              </View>
-            ) : null}
-          </Pressable>
-          </SwipeAway>
-        ))}
+        {shown[0] ? <Card topic={shown[0]} background={backgrounds[0]} lead isNew={arrived.has(shown[0].id)} onPress={() => choose(shown[0])} onAway={() => dismiss(shown[0])} /> : null}
 
-        {Array.from({ length: onTheWay }, (_, i) => (
-          <View key={`coming-${i}`} style={[styles.card, styles.coming]} accessibilityLabel="Another topic is being prepared">
-            {i === 0 ? <ActivityIndicator color={colors.ink} style={styles.spinner} /> : null}
-            <Text style={[styles.comingText, i > 0 && { color: colors.gray }]}>{i === 0 ? (shown.length > 0 ? 'Pliny is making one from your interests.' : 'Pliny is reading up on something new.') : 'Another one after that.'}</Text>
+        {rows.map((row) => (
+          <View key={row.map((i) => shown[i].id).join('-')} style={styles.row}>
+            {row.map((i) => (
+              <Card key={shown[i].id} topic={shown[i]} background={backgrounds[i]} isNew={arrived.has(shown[i].id)} onPress={() => choose(shown[i])} onAway={() => dismiss(shown[i])} />
+            ))}
+            {/* An odd one out keeps to its half, so it never stretches across the row. */}
+            {row.length === 1 ? <View style={styles.smallSlot} pointerEvents="none" /> : null}
           </View>
         ))}
 
-        {/* With fewer than three to show, the empty places are kept, so one card never grows to fill the screen. */}
-        {shown.length > 0 ? Array.from({ length: Math.max(0, WAITING - shown.length - onTheWay) }, (_, i) => <View key={`space-${i}`} style={[styles.card, { opacity: 0 }]} pointerEvents="none" />) : null}
-
-        {/* While the first topics load, the cards' places are held, so the screen does not jump. */}
-        {shown.length === 0 && onTheWay === 0 && loading ? [0, 1, 2].map((i) => <View key={`holding-${i}`} style={[styles.card, styles.holding]} />) : null}
-
-        {shown.length === 0 && onTheWay === 0 && !loading ? (
-          <View style={styles.empty}>
-            {loading ? null : (
-              <>
-                <Serif size={30} style={{ textAlign: 'center' }}>
-                  {error || stuck ? <>Something went <Em>wrong.</Em></> : <>Nothing <Em>yet.</Em></>}
-                </Serif>
-                <Text style={styles.note}>
-                  {error || stuck ? 'Pliny could not line up a story just now. It is usually a passing hiccup.' : 'Pliny is out of stories for the moment.'}
-                </Text>
-                <OutlineButton label="Try again" onPress={() => load().then(topUp)} />
-              </>
-            )}
-          </View>
+        {/* While the first stories load, the cards' places are held, so the screen does not jump. */}
+        {shown.length === 0 && loading ? (
+          <>
+            <View style={[styles.leadSlot, styles.holding]} />
+            <View style={styles.row}>
+              <View style={[styles.smallSlot, styles.holding]} />
+              <View style={[styles.smallSlot, styles.holding]} />
+            </View>
+          </>
         ) : null}
 
+        {shown.length === 0 && !loading ? (
+          <View style={styles.empty}>
+            <Serif size={30} style={{ textAlign: 'center' }}>
+              {error ? <>Something went <Em>wrong.</Em></> : <>More on the <Em>way.</Em></>}
+            </Serif>
+            <Text style={styles.note}>{error ? 'Pliny could not reach its stories just now. It is usually a passing hiccup.' : 'Pliny is lining up your next stories. They will appear here in a few minutes.'}</Text>
+            <OutlineButton label="Look again" onPress={() => load()} />
+          </View>
+        ) : null}
       </ScrollView>
 
       <NowPlayingBar />
@@ -127,17 +140,23 @@ const styles = StyleSheet.create({
   question: { marginHorizontal: gutter, marginTop: 18, marginBottom: 16 },
   scroll: { flex: 1, minHeight: 0 },
   cards: { flexGrow: 1, gap: 10, paddingHorizontal: gutter, paddingBottom: 10 },
-  slot: { flexGrow: 1, minHeight: CARD, overflow: 'hidden' },
-  card: { flexGrow: 1, minHeight: CARD, overflow: 'hidden', justifyContent: 'flex-end', paddingVertical: 18, paddingHorizontal: 20 },
-  // The title keeps to the left half. Every background keeps its artwork in the right half,
-  // so the two never touch.
-  title: { fontFamily: fonts.display, letterSpacing: -1, textTransform: 'uppercase', maxWidth: '52%' },
-  genre: { position: 'absolute', right: 12, bottom: 12, height: 22, borderRadius: 11, borderWidth: 1, paddingHorizontal: 9, justifyContent: 'center', maxWidth: '42%' },
-  genreText: { fontFamily: fonts.bodyMedium, fontSize: 11, letterSpacing: 0.4, textTransform: 'uppercase' },
+  // The lead card is about one and a half times the height of a row of two.
+  leadSlot: { flexGrow: 3, minHeight: 230, overflow: 'hidden' },
+  row: { flexGrow: 2, minHeight: 160, flexDirection: 'row', gap: 10 },
+  smallSlot: { flex: 1, minWidth: 0, overflow: 'hidden' },
+  card: { flex: 1, overflow: 'hidden', justifyContent: 'flex-end' },
+  leadCard: { paddingVertical: 20, paddingHorizontal: 20 },
+  smallCard: { paddingVertical: 14, paddingHorizontal: 14 },
+  new: { position: 'absolute', top: 16, left: 20, fontFamily: fonts.bodyMedium, fontSize: 12, letterSpacing: 2.5 },
+  title: { fontFamily: fonts.display, letterSpacing: -1, textTransform: 'uppercase' },
+  // Every background keeps its artwork toward the top right, so the title holds to the lower left.
+  leadTitle: { maxWidth: '78%' },
+  smallTitle: { maxWidth: '96%', letterSpacing: -0.6 },
+  tag: { alignSelf: 'flex-start', marginTop: 8, height: 24, borderRadius: 12, borderWidth: 1.5, paddingHorizontal: 10, justifyContent: 'center', maxWidth: '100%' },
+  leadTag: { marginTop: 12, height: 28, borderRadius: 14, paddingHorizontal: 12 },
+  tagText: { fontFamily: fonts.bodyMedium, fontSize: 10, letterSpacing: 1.6, textTransform: 'uppercase' },
+  leadTagText: { fontSize: 11, letterSpacing: 2 },
   holding: { backgroundColor: colors.line, opacity: 0.6 },
-  coming: { borderWidth: 1.5, borderColor: colors.ink, borderStyle: 'dashed' },
-  spinner: { position: 'absolute', top: 18, left: 20 },
-  comingText: { fontFamily: fonts.serifItalic, fontSize: 24, lineHeight: 26, color: colors.ink, maxWidth: '80%' },
   empty: { flexGrow: 1, minHeight: 220, alignItems: 'center', justifyContent: 'center', gap: 14, paddingHorizontal: 12 },
   note: { fontFamily: fonts.body, fontSize: 16, lineHeight: 22, color: colors.gray, textAlign: 'center' },
 });

@@ -1,0 +1,1 @@
+-- Applied through the Supabase connector on 23 Nov 2026: turns on pg_cron and pg_net, adds the settings rows cron_secret and reserve, and schedules the job pliny-reserve-tick, which calls the prepare function once a minute with {"action":"tick"}. The secret lives only in the settings table.

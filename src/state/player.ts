@@ -304,13 +304,8 @@ export const usePlayer = create<PlayerState>((set, get) => {
 
     begin: (topic, minutes) => {
       const started = launch(topic, minutes, () => startLesson(topic.id, minutes));
-      // While this story plays, the next ones are lined up, so the Listen page is not empty
-      // when it ends. It waits a little first, so this story's own chapters get a head start.
-      setTimeout(() => {
-        const shelf = useTopics.getState();
-        useTopics.setState({ topics: shelf.topics.filter((t) => t.id !== topic.id) });
-        shelf.topUp();
-      }, 15000);
+      // It is no longer waiting to be heard, so it leaves the Listen page. The server lines up the next ones by itself.
+      useTopics.setState({ topics: useTopics.getState().topics.filter((t) => t.id !== topic.id) });
       return started;
     },
 

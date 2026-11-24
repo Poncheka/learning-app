@@ -136,15 +136,17 @@ async function listLessons() {
  */
 async function propose() {
   // Read as the signed-in person, so the lessons and dismissals that come back are only theirs.
-  const { data: waiting } = await mine().from("topics").select("id, status, stage, tag, proposed_at, proposed_for, lessons(id), dismissals(topic_id)").in("status", ["ready", "preparing", "proposed"]);
+  const { data: waiting } = await mine().from("topics").select("id, status, stage, tag, proposed_at, proposed_for, lessons(id, user_id), dismissals(topic_id, user_id)").in("status", ["ready", "preparing", "proposed"]);
+  // Checked by name as well, for when the scheduled job reads on a person's behalf.
+  const theirs = (rows: any[] | null) => (rows ?? []).filter((r: any) => r.user_id === me());
   // A topic that has sat in "preparing" for minutes without being planned was cut off. It is not on its way.
   const recent = new Date(Date.now() - 4 * 60 * 1000).toISOString();
   const unplayed = (waiting ?? []).filter((t: any) =>
     t.status === "ready"
-      ? (t.lessons ?? []).length === 0 && (t.dismissals ?? []).length === 0
+      ? theirs(t.lessons).length === 0 && theirs(t.dismissals).length === 0
       : t.proposed_for === me() && (t.status === "proposed" || t.stage === "planned" || t.proposed_at > recent),
   );
-  const { data: tags } = await db.from("interests").select("label").eq("hidden", false);
+  const { data: tags } = await db.from("interests").select("label").eq("hidden", false).eq("user_id", me());
   const labels = (tags ?? []).map((t) => t.label as string);
   // Shared stories fill a person's screen, but only stories thought up for them, or matching
   // their interests, count toward the three kept waiting. So a new person's own stories get
@@ -154,9 +156,9 @@ async function propose() {
   // Enough means both: at least one story of their own ready or on its way, and three to choose
   // from in all. Shared stories make up the three where there are some. Where there are not,
   // more ideas of their own are thought up.
-  if (own.some((t: any) => t.status === "proposed") || (own.length >= OWN_TARGET && unplayed.length >= READY_TARGET)) return json({ proposed: [] });
+  if (own.some((t: any) => t.status === "proposed") || (own.length >= OWN_TARGET && unplayed.length >= ((who.getStore() as any)?.reserve ? 6 : READY_TARGET))) return json({ proposed: [] });
   // Someone with no interests yet listens from the shared shelf. Nothing is made for them until they pick some.
-  if (labels.length === 0 && unplayed.length >= READY_TARGET) return json({ proposed: [] });
+  if (labels.length === 0 && unplayed.length >= ((who.getStore() as any)?.reserve ? 6 : READY_TARGET)) return json({ proposed: [] });
   if (!OPENAI_KEY) return json({ error: "OPENAI_API_KEY is not set as an edge function secret." }, 500);
 
   const { data: seen } = await db.from("topics").select("asked, title").order("proposed_at", { ascending: false }).limit(300);
@@ -245,20 +247,34 @@ async function handle(req: Request): Promise<Response> {
   // Who is asking. Everything here belongs to one person, so nobody gets in without signing in.
   const pass = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
   const { data: asker } = pass.split(".").length === 3 ? await service.auth.getUser(pass).catch(() => ({ data: null as any })) : { data: null as any };
-  if (!asker?.user) return json({ error: "Sign in to use Pliny." }, 401);
-  Object.assign(who.getStore() ?? {}, {
-    user_id: asker.user.id,
-    client: createClient(Deno.env.get("SUPABASE_URL") ?? "", key, {
-      global: { headers: { Authorization: `Bearer ${pass}` } },
-      auth: { persistSession: false, autoRefreshToken: false },
-    }),
-  });
+  // The scheduled job may think up ideas on a person's behalf. It proves itself with a secret kept in the settings table.
+  const offered = req.headers.get("x-pliny-cron") ?? "";
+  let scheduler = false;
+  if (!asker?.user && offered) {
+    const { data: kept } = await service.from("settings").select("value").eq("key", "cron_secret").maybeSingle();
+    scheduler = typeof kept?.value === "string" && kept.value.length > 0 && kept.value === offered;
+  }
+  if (!asker?.user && !scheduler) return json({ error: "Sign in to use Pliny." }, 401);
+  if (asker?.user) {
+    Object.assign(who.getStore() ?? {}, {
+      user_id: asker.user.id,
+      client: createClient(Deno.env.get("SUPABASE_URL") ?? "", key, {
+        global: { headers: { Authorization: `Bearer ${pass}` } },
+        auth: { persistSession: false, autoRefreshToken: false },
+      }),
+    });
+  }
 
   let body: Record<string, unknown>;
   try {
     body = await req.json();
   } catch {
     return json({ error: "Send a JSON body." }, 400);
+  }
+  if (scheduler) {
+    // The scheduler may only think up ideas, and only for a named person.
+    if (body.action !== "propose" || !isId(body.as_user)) return json({ error: "Not allowed." }, 401);
+    Object.assign(who.getStore() ?? {}, { user_id: body.as_user, client: service, reserve: true });
   }
 
   if (body.action === "lessons") return await listLessons();

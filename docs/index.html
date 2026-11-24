@@ -33,15 +33,16 @@ input:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid var(-
 .pill{height:48px;padding:0 20px;border-radius:24px;border:1.5px solid var(--ink);display:flex;align-items:center;font-size:15px;font-weight:600;background:#fff}
 
 /* Hero */
-.hero{padding:28px var(--pad) 72px;position:relative;display:flex;gap:40px}
+.hero{padding:28px var(--pad) 72px;position:relative;display:flex;gap:96px}
 .hero-ring{position:absolute;left:-120px;bottom:-230px;width:300px;height:300px;border-radius:50%;border:2px solid var(--ink)}
-.hero-star{position:absolute;left:560px;bottom:14px;width:90px;height:90px}
+.hero-star{position:absolute;left:640px;bottom:14px;width:90px;height:90px}
 .hero-copy{flex:1;min-width:0;padding-top:60px;position:relative}
 h1{margin:0;font-weight:400}
 .h1a{font-size:84px;line-height:.94;letter-spacing:-4px;display:block}
 .h1b{font-style:italic;font-size:104px;line-height:1.05;letter-spacing:-1px;display:inline-block;background:linear-gradient(transparent 62%,var(--yellow) 62%,var(--yellow) 92%,transparent 92%)}
 .h1dot{font-size:104px;color:var(--red);letter-spacing:-4px}
 .lede{margin:26px 0 32px;font-size:22px;line-height:1.45;max-width:560px}
+.hero .form{max-width:560px}
 .fine{margin:14px 6px 0;font-size:14px;color:var(--gray);line-height:1.45}
 
 /* Waitlist form */
@@ -54,7 +55,6 @@ h1{margin:0;font-weight:400}
 .done-tick{width:44px;height:44px;border-radius:22px;background:var(--ink);color:var(--paper);display:flex;align-items:center;justify-content:center;flex:none}
 .done-title{font-size:22px;letter-spacing:-.5px;text-transform:uppercase}
 .done-sub{font-size:15px;margin-top:4px;line-height:1.35;overflow-wrap:anywhere}
-.done-change{background:transparent;border:0;font-size:14px;font-weight:600;text-decoration:underline;color:var(--ink);flex:none;height:44px}
 [hidden]{display:none!important}
 
 /* Try it out */
@@ -296,7 +296,6 @@ footer nav{display:flex;gap:20px;font-size:14px;font-weight:500}
       <div class="done-title grotesk">You are on the list.</div>
       <div class="done-sub">We will email <span class="done-email"></span> when your invite is ready.</div>
     </div>
-    <button type="button" class="done-change">Change</button>
   </div>
 </template>
 
@@ -316,12 +315,6 @@ footer nav{display:flex;gap:20px;font-size:14px;font-weight:500}
       box.querySelector('.done').hidden = false;
     });
   }
-  function showForm() {
-    forms.forEach(function (box) {
-      box.querySelector('.done').hidden = true;
-      box.querySelector('form').hidden = false;
-    });
-  }
   forms.forEach(function (box) {
     var form = box.querySelector('form');
     var input = form.elements.email;
@@ -329,7 +322,6 @@ footer nav{display:flex;gap:20px;font-size:14px;font-weight:500}
     var error = form.querySelector('.form-error');
     var fail = function (text) { error.textContent = text; error.hidden = false; };
     input.addEventListener('input', function () { error.hidden = true; });
-    box.querySelector('.done-change').addEventListener('click', function () { showForm(); input.focus(); });
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       var email = input.value.trim();
