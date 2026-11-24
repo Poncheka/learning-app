@@ -16,7 +16,7 @@ import { createAudioPlaylist, setAudioModeAsync, setIsAudioActiveAsync, type Aud
 import { create } from 'zustand';
 
 import { useTopics } from '@/state/topics';
-import { MOCK, chapterAudioUrl, getLesson, prewarmChapter, startLesson, type Lesson, type LessonSummary, type Topic } from '@/lib/api';
+import { MOCK, chapterAudioUrl, getLesson, prewarmChapter, reportHeard, startLesson, type Lesson, type LessonSummary, type Topic } from '@/lib/api';
 
 const STING = require('../../assets/audio/sting.mp3') as number;
 
@@ -129,6 +129,15 @@ function teardown() {
 // One cover for every story for now, served from the project's public GitHub repo.
 const COVER = 'https://raw.githubusercontent.com/Poncheka/learning-app/main/docs/cover.png';
 
+// Chapter names are written like sentences. Outside the app, on the lock screen and in a car, they
+// are shown the way titles usually are: The Neighbors Start a Rumor.
+const SMALL = new Set(['a', 'an', 'and', 'as', 'at', 'but', 'by', 'for', 'from', 'in', 'into', 'nor', 'of', 'on', 'or', 'over', 'the', 'to', 'with']);
+const titled = (name: string) =>
+  name
+    .split(' ')
+    .map((word, i) => (i > 0 && SMALL.has(word.toLowerCase()) ? word.toLowerCase() : word.charAt(0).toUpperCase() + word.slice(1)))
+    .join(' ');
+
 export const usePlayer = create<PlayerState>((set, get) => {
   // The sting is the second item in the queue, so every chapter after the opening sits one
   // place later in the queue than its chapter number. These two translate between them.
@@ -139,7 +148,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
     const { lesson } = get();
     if (!playlist || !lesson) return;
     // The cover shows on the lock screen, in the island at the top of the phone, and on a car's screen.
-    const metadata = { title: lesson.segments[index].title, artist: 'Pliny', albumTitle: lesson.title, artworkUrl: COVER };
+    const metadata = { title: titled(lesson.segments[index].title), artist: 'Pliny', albumTitle: titled(lesson.title), artworkUrl: COVER };
     if (first) playlist.setActiveForLockScreen(true, metadata, { showSeekBackward: true, showSeekForward: true });
     else playlist.updateLockScreenMetadata(metadata);
   };
@@ -455,3 +464,14 @@ export function clock(seconds: number): string {
   const whole = Math.max(0, Math.round(seconds));
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
 }
+
+
+// History shows whether a story was finished, or about how much is left. So each time the listener
+// moves to a new chapter, and when they reach the end, the server is told.
+usePlayer.subscribe((now, before) => {
+  if (MOCK || !now.lesson) return;
+  const moved = now.lesson.id !== before.lesson?.id || now.index !== before.index;
+  const ended = now.phase === 'finished' && before.phase !== 'finished';
+  if (ended) reportHeard(now.lesson.id, now.lesson.segments.length, true);
+  else if (moved && (now.phase === 'playing' || now.phase === 'starting')) reportHeard(now.lesson.id, now.index + 1, false);
+});

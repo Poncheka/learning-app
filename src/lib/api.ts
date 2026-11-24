@@ -64,7 +64,17 @@ export type LessonSummary = {
   made: number;
   /** The interest this lesson grew out of. Lessons made before tags were recorded have none. */
   tag: string | null;
+  /** True once it has been heard to the end. */
+  finished?: boolean;
+  /** About how many minutes are left to hear. Null when finished, or when it was played before this was recorded. */
+  left_minutes?: number | null;
 };
+
+/** Tells the server which chapter the listener has reached, so History can show what is left. */
+export function reportHeard(lessonId: string, position: number, finished: boolean): void {
+  if (MOCK) return;
+  call({ action: 'heard', lesson_id: lessonId, position, finished }, 'shelf').catch(() => {});
+}
 
 export type Tag = { id: string; label: string };
 export type Interests = { interests: Tag[]; suggestions: string[]; max: number };

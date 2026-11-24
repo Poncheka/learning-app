@@ -114,7 +114,7 @@ const isId = (value: unknown): value is string => typeof value === "string" && /
 async function listLessons() {
   const { data, error } = await db
     .from("lessons")
-    .select("id, title, chosen_minutes, started_at, segments(position, status), topics(tag)")
+    .select("id, title, chosen_minutes, started_at, heard_position, finished_at, segments(position, status, target_minutes), topics(tag)")
     .eq("hidden", false)
     .order("started_at", { ascending: false })
     .limit(60);
@@ -128,6 +128,10 @@ async function listLessons() {
       tag: l.topics?.tag ?? null,
       chapters: l.segments.length,
       made: l.segments.filter((s: any) => s.status === "ready").length,
+      finished: Boolean(l.finished_at),
+      // What is left counts the chapter they were in as still to hear, so it is "about" this much.
+      // Stories played before this was recorded have no figure.
+      left_minutes: l.finished_at || !l.heard_position ? null : Math.round(l.segments.filter((s: any) => s.position >= l.heard_position).reduce((sum: number, s: any) => sum + (Number(s.target_minutes) || 0), 0)),
     }))
     .filter((l) => l.made > 0);
   return json({ lessons });
@@ -327,6 +331,19 @@ async function handle(req: Request): Promise<Response> {
   }
 
   if (body.action === "lessons") return await listLessons();
+
+  // Where the listener has got to in a story. It only ever moves forward.
+  if (body.action === "heard") {
+    const position = Number(body.position);
+    if (!isId(body.lesson_id) || !Number.isInteger(position) || position < 1) return json({ error: "Give a lesson_id and a position." }, 400);
+    const { data: lesson } = await db.from("lessons").select("heard_position, finished_at").eq("id", body.lesson_id).maybeSingle();
+    if (!lesson) return json({ error: "No such lesson." }, 404);
+    await db
+      .from("lessons")
+      .update({ heard_position: Math.max(lesson.heard_position ?? 0, position), ...(body.finished === true && !lesson.finished_at ? { finished_at: new Date().toISOString() } : {}) })
+      .eq("id", body.lesson_id);
+    return json({ ok: true });
+  }
   if (body.action === "propose") return await propose();
 
   if (body.action === "voice") return await currentVoice();

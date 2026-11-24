@@ -94,7 +94,10 @@ export default function Library() {
                     {lesson.title}
                   </Text>
                   <View style={styles.meta}>
-                    <Text style={styles.sub}>{length(lesson.chosen_minutes)}</Text>
+                    <Text style={styles.sub}>
+                      {length(lesson.chosen_minutes)}
+                      {lesson.finished ? ' · Finished' : lesson.left_minutes ? ` · About ${lesson.left_minutes} min left` : ''}
+                    </Text>
                     {/* A wildcard, picked from outside the tags, shows no tag at all. */}
                     {lesson.tag && lesson.tag !== 'Off the map' ? <TagLabel>{lesson.tag}</TagLabel> : null}
                   </View>

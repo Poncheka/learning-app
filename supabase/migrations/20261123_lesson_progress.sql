@@ -1,0 +1,1 @@
+-- Applied through the Supabase connector on 23 Nov 2026: adds lessons.heard_position and lessons.finished_at, so History can show Finished or how much is left.
