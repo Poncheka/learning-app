@@ -16,7 +16,7 @@ function heard(when: string) {
   return days <= 0 ? 'today' : days === 1 ? 'yesterday' : `${day.getDate()} ${MONTHS[day.getMonth()]}`;
 }
 
-export function StoryRow({ lesson, onPlay, onRemove }: { lesson: LessonSummary; onPlay: () => void; onRemove: () => void }) {
+export function StoryRow({ lesson, onPlay, onRemove, onUnlike }: { lesson: LessonSummary; onPlay: () => void; onRemove: () => void; onUnlike: () => void }) {
   const part = !lesson.finished && lesson.left_minutes ? `Resume. ${lesson.left_minutes} min left` : null;
   return (
     <SwipeAway label="Remove" onAway={onRemove}>
@@ -29,9 +29,9 @@ export function StoryRow({ lesson, onPlay, onRemove }: { lesson: LessonSummary; 
           <Text style={[styles.sub, part ? styles.part : null]}>{part ?? `${lesson.chosen_minutes} min. ${lesson.finished ? 'Heard' : 'Started'} ${heard(lesson.started_at)}`}</Text>
         </View>
         {lesson.liked ? (
-          <View accessibilityLabel="Liked">
+          <Pressable accessibilityRole="button" accessibilityLabel="Liked. Tap to unlike" onPress={onUnlike} hitSlop={14} style={({ pressed }) => [{ padding: 6 }, pressed && { opacity: 0.4 }]}>
             <Icon name="heart" size={20} color={colors.vermilion} />
-          </View>
+          </Pressable>
         ) : null}
       </Pressable>
     </SwipeAway>

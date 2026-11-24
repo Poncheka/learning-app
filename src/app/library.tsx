@@ -13,7 +13,7 @@ import { EVERYTHING, LIKED, inPlaylist, playOne, shelfOf, useLibrary } from '@/s
 import { colors, fonts, gutter } from '@/theme';
 
 export default function Library() {
-  const { lessons, error, load, remove } = useLibrary();
+  const { lessons, error, load, remove, unlike } = useLibrary();
   const [search, setSearch] = useState('');
   useEffect(load, [load]);
 
@@ -70,7 +70,7 @@ export default function Library() {
         <ScrollView style={styles.results} contentContainerStyle={{ paddingBottom: 12 }} keyboardShouldPersistTaps="handled">
           {found.length === 0 ? <Text style={[styles.note, { marginTop: 24 }]}>No story matches that.</Text> : null}
           {found.map((lesson) => (
-            <StoryRow key={lesson.id} lesson={lesson} onPlay={() => play(lesson)} onRemove={() => remove(lesson)} />
+            <StoryRow key={lesson.id} lesson={lesson} onPlay={() => play(lesson)} onRemove={() => remove(lesson)} onUnlike={() => unlike(lesson)} />
           ))}
         </ScrollView>
       ) : (

@@ -606,6 +606,28 @@ async function shapeOld() {
   }
 }
 
+// ---------- The cheaper, slower tier ----------
+//
+// OpenAI will do the same work with the same model for about half the price if it may take its
+// time ("flex"). That suits stories prepared ahead for a listener who already has something to
+// play, and nothing else. A slow or refused flex call is made again at once at the normal tier,
+// and flex is then rested for half an hour, so a busy spell at OpenAI never holds stories back.
+const FLEX_FLOOR = 2; // Stories a listener must already have ready before theirs are made on flex.
+const FLEX_PATIENCE_MS = 150_000;
+const FLEX_REST_MS = 30 * 60_000;
+
+/** True when cheap, slow work is allowed right now. */
+async function flexOpen(): Promise<boolean> {
+  if ((await setting("flex", "off")) !== "on") return false;
+  return Date.now() > Date.parse(await setting("flex_rest_until", "2000-01-01"));
+}
+
+async function restFlex(why: string) {
+  console.log("flex rested:", why);
+  mark({ flex: false });
+  await service.from("settings").upsert({ key: "flex_rest_until", value: new Date(Date.now() + FLEX_REST_MS).toISOString() }).then(() => {}, () => {});
+}
+
 // ---------- OpenAI ----------
 
 async function openaiProblem(step: string, res: Response): Promise<Problem> {
@@ -624,13 +646,26 @@ async function openaiProblem(step: string, res: Response): Promise<Problem> {
  * for these the cache is turned off. If the model does not accept the setting, the call is made without it.
  */
 async function ask(step: string, model: string, instructions: string, input: string, once = false): Promise<string> {
-  const send = (extra: Record<string, unknown>) =>
+  const send = (extra: Record<string, unknown>, patience?: number) =>
     fetch("https://api.openai.com/v1/responses", {
       method: "POST",
       headers: { Authorization: `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({ model, instructions, input, ...extra }),
+      signal: patience ? AbortSignal.timeout(patience) : undefined,
     });
-  let res = await send(once ? { prompt_cache_options: { mode: "explicit" } } : {});
+  const caching = once ? { prompt_cache_options: { mode: "explicit" } } : {};
+  if (who.getStore()?.flex) {
+    // Work nobody is waiting on. Any trouble at all, and it is done the normal way instead.
+    try {
+      const cheap = await send({ ...caching, service_tier: "flex" }, FLEX_PATIENCE_MS);
+      if (cheap.ok) return await settle(step, model, await cheap.json());
+      await restFlex(`${cheap.status} ${(await cheap.text()).slice(0, 200)}`);
+    } catch (err) {
+      if (err instanceof Problem) throw err;
+      await restFlex(String(err));
+    }
+  }
+  let res = await send(caching);
   if (once && res.status === 400) res = await send({});
   if (!res.ok) throw await openaiProblem(step, res);
   return await settle(step, model, await res.json());
@@ -685,7 +720,8 @@ async function settle(step: string, model: string, data: any): Promise<string> {
     output_tokens: data.usage?.output_tokens ?? 0,
     cached_tokens: details.cached_tokens ?? 0,
     cache_write_tokens: details.cache_write_tokens ?? details.cache_creation_tokens ?? details.cache_write_30m_tokens ?? 0,
-    raw: data.usage ?? null,
+    // The tier is kept beside the usage, so flex work can be told apart and priced at its own rate.
+    raw: data.usage ? { ...data.usage, service_tier: data.service_tier ?? null } : null,
   });
   let text = "";
   for (const item of data.output ?? []) {
@@ -1527,7 +1563,9 @@ async function starterStep(): Promise<boolean> {
       const { data: made } = await service.from("lessons").select("id, segments(position, status)").eq("topic_id", topic.id).eq("chosen_minutes", plan.total).limit(12);
       if ((made ?? []).some((l: any) => l.segments.length === plan.chosen.length && l.segments.every((s: any) => s.status === "ready"))) continue;
       let did = false;
-      await who.run({ user_id: owner, client: service, reserve: true }, async () => {
+      // Nobody is waiting on a starter story, so it is always made the cheap, slow way when that is open.
+      const flex = await flexOpen();
+      await who.run({ user_id: owner, client: service, reserve: true, flex }, async () => {
         const lesson = await start(topic.id, minutes);
         // One made only for this is kept out of the owner's History.
         if ((made ?? []).length === 0) await service.from("lessons").update({ hidden: true }).eq("id", lesson.id);
@@ -1635,6 +1673,9 @@ async function refill() {
 
   const unplayed = await unplayedTopics();
   const ready = unplayed.length;
+  // Stories made ahead by the scheduler go the cheap, slow way, but only for someone who already
+  // has enough to listen to. A short shelf is always filled at full speed.
+  if (who.getStore()?.reserve && ready >= FLEX_FLOOR && (await flexOpen())) mark({ flex: true });
 
   // The two long model calls, the plan and its review, run on OpenAI's side. Collect one that is under way.
   const { data: running } = await db.from("topics").select().eq("status", "preparing").in("stage", ["planning", "reviewing"]).order("proposed_at").limit(1).maybeSingle();

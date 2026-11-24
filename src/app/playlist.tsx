@@ -14,7 +14,7 @@ import { colors, fonts, gutter } from '@/theme';
 export default function Playlist() {
   const params = useLocalSearchParams<{ name?: string }>();
   const name = typeof params.name === 'string' && params.name ? params.name : EVERYTHING;
-  const { lessons, load, remove } = useLibrary();
+  const { lessons, load, remove, unlike } = useLibrary();
   useEffect(() => {
     if (lessons === null) load();
   }, [lessons, load]);
@@ -60,7 +60,7 @@ export default function Playlist() {
 
       <ScrollView style={styles.list} contentContainerStyle={{ paddingBottom: 12 }} showsVerticalScrollIndicator={false}>
         {stories.map((lesson) => (
-          <StoryRow key={lesson.id} lesson={lesson} onPlay={() => play(lesson)} onRemove={() => remove(lesson)} />
+          <StoryRow key={lesson.id} lesson={lesson} onPlay={() => play(lesson)} onRemove={() => remove(lesson)} onUnlike={() => unlike(lesson)} />
         ))}
         {lessons !== null && stories.length === 0 ? <Text style={styles.note}>Nothing in this playlist yet.</Text> : null}
       </ScrollView>

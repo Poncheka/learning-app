@@ -2,7 +2,7 @@
 // "Play all" queue: the stories still to come after the one playing.
 import { create } from 'zustand';
 
-import { hideLesson, listLessons, type LessonSummary } from '@/lib/api';
+import { hideLesson, listLessons, type LessonSummary, sendSignal } from '@/lib/api';
 import { usePlayer } from '@/state/player';
 
 type LibraryState = {
@@ -11,6 +11,8 @@ type LibraryState = {
   load: () => void;
   /** Gone from the lists at once. The server is told, and keeps the audio. */
   remove: (lesson: LessonSummary) => void;
+  /** Takes back a thumbs up. The story stays in the Library and leaves the Liked playlist. */
+  unlike: (lesson: LessonSummary) => void;
 };
 
 export const useLibrary = create<LibraryState>((set, get) => ({
@@ -25,6 +27,10 @@ export const useLibrary = create<LibraryState>((set, get) => ({
   remove: (lesson) => {
     set({ lessons: (get().lessons ?? []).filter((l) => l.id !== lesson.id) });
     hideLesson(lesson.id).catch(() => get().load());
+  },
+  unlike: (lesson) => {
+    set({ lessons: (get().lessons ?? []).map((l) => (l.id === lesson.id ? { ...l, liked: false } : l)) });
+    sendSignal('cleared', lesson.id);
   },
 }));
 
