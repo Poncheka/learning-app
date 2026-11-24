@@ -2,7 +2,7 @@
 // it turns up on the Listen tab when it is finished. Swipe one away to say it is not for you.
 import { router } from 'expo-router';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, AppState, LayoutAnimation, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { CoverTile } from '@/components/covers';
 import { NowPlayingBar } from '@/components/NowPlayingBar';
@@ -29,11 +29,18 @@ export default function Explore() {
   const [banner, setBanner] = useState<Banner>(null);
   const hide = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // The banner slides up as it appears, so a tap is answered the moment it lands.
+  const rise = useRef(new Animated.Value(0)).current;
   const say = (next: Banner) => {
     if (hide.current) clearTimeout(hide.current);
     setBanner(next);
-    if (next) hide.current = setTimeout(() => setBanner(null), 6000);
+    if (!next) return;
+    rise.setValue(0);
+    Animated.spring(rise, { toValue: 1, useNativeDriver: true, bounciness: 6, speed: 18 }).start();
+    hide.current = setTimeout(() => Animated.timing(rise, { toValue: 0, duration: 220, useNativeDriver: true }).start(() => setBanner(null)), 6000);
   };
+  // The rows below close up smoothly when one leaves.
+  const settle = () => LayoutAnimation.configureNext(LayoutAnimation.create(220, 'easeInEaseOut', 'opacity'));
 
   const look = useCallback(() => {
     listIdeas()
@@ -60,16 +67,20 @@ export default function Explore() {
   const queue = (idea: Idea) => {
     // It leaves the list at once. If the server says no, it comes back, with the reason.
     const before = ideas ?? [];
+    settle();
     setIdeas(before.filter((i) => i.id !== idea.id));
+    // Said at once, without waiting for the server. It nearly always agrees, and when it does not, the reason replaces this.
+    say({ title: 'Queued. It will be on your Listen tab.', note: 'Ready in about 5 minutes' });
     queueIdea(idea.id)
-      .then(() => say({ title: 'Queued. It will be on your Listen tab.', note: 'Ready in about 5 minutes' }))
       .catch((err) => {
+        settle();
         setIdeas(before);
         say({ title: 'Not queued.', note: err instanceof Error ? err.message : 'Please try again.' });
       });
   };
 
   const away = (idea: Idea) => {
+    settle();
     setIdeas((had) => (had ?? []).filter((i) => i.id !== idea.id));
     dismissIdea(idea.id).catch(() => {});
   };
@@ -128,10 +139,10 @@ export default function Explore() {
       </ScrollView>
 
       {banner ? (
-        <View style={styles.banner} accessibilityLiveRegion="polite">
+        <Animated.View style={[styles.banner, { opacity: rise, transform: [{ translateY: rise.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }] }]} accessibilityLiveRegion="polite">
           <Text style={styles.bannerTitle}>{banner.title}</Text>
           <Text style={styles.bannerNote}>{banner.note}</Text>
-        </View>
+        </Animated.View>
       ) : null}
 
       <NowPlayingBar />
