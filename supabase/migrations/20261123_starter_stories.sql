@@ -1,0 +1,1 @@
+-- Applied through the Supabase connector on 23 Nov 2026: adds topics.starter, marks seven starter stories, and adds the settings row starter_owner.

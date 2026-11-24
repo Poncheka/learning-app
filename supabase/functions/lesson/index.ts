@@ -1361,7 +1361,10 @@ async function unplayedTopics(): Promise<any[]> {
   // Stories thought up for this person come first, then ones that match their interests, then the rest.
   const { data: tags } = await db.from("interests").select("label").eq("hidden", false).eq("user_id", me());
   const labels = new Set((tags ?? []).map((t: any) => String(t.label).toLowerCase()));
-  const rank = (t: any) => (t.proposed_for === me() ? 0 : labels.has(String(t.tag ?? "").toLowerCase()) ? 1 : 2);
+  // Someone new is shown the starter stories early: they are finished, so they start at once and cost nothing.
+  const { count: heard } = await db.from("lessons").select("id", { count: "exact", head: true }).eq("user_id", me());
+  const fresh = (heard ?? 0) < 3;
+  const rank = (t: any) => (t.proposed_for === me() ? 0 : fresh && t.starter ? 0.5 : labels.has(String(t.tag ?? "").toLowerCase()) ? 1 : 2);
   return open
     .map((t: any, i: number) => ({ t: { ...t, _rank: rank(t) }, i }))
     .sort((a: any, b: any) => a.t._rank - b.t._rank || a.i - b.i)
@@ -1438,8 +1441,43 @@ async function tick() {
       }
     });
     // One piece of real work per run. The next run, a minute later, takes the next piece.
-    if (seat.worked) break;
+    if (seat.worked) return;
   }
+  // With nobody short of stories, the starter stories are finished, a chapter at a time.
+  await starterStep().catch((err) => console.log("starter:", err instanceof Problem ? `${err.message} ${err.detail ?? ""}` : String(err)));
+}
+
+/**
+ * Starter stories are a few of the best, marked by hand. Each is written and recorded to the end at
+ * the short lengths, once. After that anyone who picks one gets the finished recordings at no cost,
+ * so a new listener's first stories start at once. One chapter is made per run. True if one was.
+ */
+async function starterStep(): Promise<boolean> {
+  const owner = await setting("starter_owner", "");
+  if (!isId(owner)) return false;
+  const { data: topics } = await service.from("topics").select("id, outline, story").eq("starter", true).eq("status", "ready").order("prepared_at").limit(20);
+  for (const topic of topics ?? []) {
+    const outline = topic.outline as Chapter[];
+    if (!Array.isArray(outline) || outline.length < 2) continue;
+    for (const minutes of SHORT_LENGTHS) {
+      const plan = telling(outline, minutes, topic.story?.engine === 2);
+      const { data: made } = await service.from("lessons").select("id, segments(position, status)").eq("topic_id", topic.id).eq("chosen_minutes", plan.total).limit(12);
+      if ((made ?? []).some((l: any) => l.segments.length === plan.chosen.length && l.segments.every((s: any) => s.status === "ready"))) continue;
+      let did = false;
+      await who.run({ user_id: owner, client: service, reserve: true }, async () => {
+        const lesson = await start(topic.id, minutes);
+        // One made only for this is kept out of the owner's History.
+        if ((made ?? []).length === 0) await service.from("lessons").update({ hidden: true }).eq("id", lesson.id);
+        const next = lesson.segments.find((s: any) => s.status !== "ready");
+        if (next) {
+          await makeSegment(lesson.id, next.position);
+          did = true;
+        }
+      });
+      if (did) return true;
+    }
+  }
+  return false;
 }
 
 const strings = (value: unknown): string[] => (Array.isArray(value) ? value.filter((v): v is string => typeof v === "string" && v.trim().length > 0) : []);
@@ -1793,6 +1831,8 @@ async function start(topicId: string, minutes: number) {
           ? lent.map((s: any) => `Chapter ${s.position}, ${s.title}: ${s.summary || "no summary given."}`).join("\n")
           : `Chapter 1, ${outline[0].title}: ${topic.opening_summary || "the opening."}` + (second ? `\nChapter 2, ${chosen[1].title}: ${second.summary || "no summary given."}` : ""),
       writer_model: WRITER_MODEL,
+      // Named outright for the scheduled job, which works on a person's behalf without their pass.
+      ...(me() ? { user_id: me() } : {}),
     })
     .select()
     .single();
