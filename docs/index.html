@@ -127,6 +127,11 @@ footer nav{display:flex;gap:20px;font-size:14px;font-weight:500}
 @keyframes spinr{to{transform:rotate(-360deg)}}
 @media (prefers-reduced-motion:reduce){*{animation:none!important}html{scroll-behavior:auto}}
 
+/* On laptops and desktops the whole page is drawn at 90 percent, so more of it fits on screen. Phones are left as they are. */
+@media (min-width:761px){
+  html{zoom:.9}
+  .wrap{max-width:1600px}
+}
 /* Tablet: the player drops under the headline */
 @media (max-width:1180px){
   :root{--pad:48px}
