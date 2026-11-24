@@ -238,13 +238,17 @@ export const usePlayer = create<PlayerState>((set, get) => {
       const { lesson, index, made, phase } = get();
       if (!lesson || (phase !== 'playing' && phase !== 'starting')) return;
       const near = [index, index + 1].filter((i) => i < lesson.segments.length);
-      if (near.every((i) => made[i])) return;
+      // A finished chapter whose sound has not arrived yet is asked about again, so the waveform can be drawn.
+      if (near.every((i) => made[i] && typeof lesson.segments[i].shape === 'string')) return;
       getLesson(lesson.id)
         .then((fresh) => {
           const now = get();
           if (now.lesson?.id !== fresh.id) return;
           // A chapter once made stays made, whatever a late answer says.
-          set({ made: fresh.segments.map((s, i) => now.made[i] || s.status === 'ready') });
+          set({
+            made: fresh.segments.map((s, i) => now.made[i] || s.status === 'ready'),
+            lesson: { ...now.lesson, segments: now.lesson.segments.map((s, i) => (typeof fresh.segments[i]?.shape === 'string' ? { ...s, shape: fresh.segments[i].shape, seconds: fresh.segments[i].seconds } : s)) },
+          });
         })
         .catch(() => {});
     }, 5000);

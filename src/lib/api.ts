@@ -29,6 +29,10 @@ export type Segment = {
   title: string;
   target_minutes: number;
   status: 'planned' | 'writing' | 'voicing' | 'ready' | 'failed';
+  /** The sound of the recording: a digit per slice of time, 0 silent to 9 loud. Empty or missing when not known. */
+  shape?: string | null;
+  /** How long the recording runs. */
+  seconds?: number | null;
 };
 
 export type Lesson = {

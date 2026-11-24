@@ -90,7 +90,13 @@ export default function Playing() {
         />
       </View>
 
-      <PlayingArt progress={real} playing={playing} color={colorFor(player.topic?.id ?? lesson.id)} />
+      <PlayingArt
+        playing={playing}
+        color={colorFor(player.topic?.id ?? lesson.id)}
+        shape={player.interlude ? null : lesson.segments[index]?.shape}
+        time={player.time}
+        length={player.duration || lesson.segments[index]?.seconds || 0}
+      />
 
       <Eyebrow style={{ marginBottom: 6 }}>{lesson.title}</Eyebrow>
       <Display size={34} style={{ minHeight: 66 }}>

@@ -544,6 +544,68 @@ function mp3Seconds(audio: Uint8Array): number | null {
   return null;
 }
 
+/**
+ * The sound of a recording as a row of digits, one for each quarter second or so: 0 is silence and
+ * 9 is the narrator at full voice. It is read straight from the mp3's own bookkeeping (every frame
+ * notes how loud it is), so nothing has to be decoded and no model is asked. The player draws it.
+ */
+function mp3Shape(audio: Uint8Array): { shape: string; seconds: number } | null {
+  let at = 0;
+  if (audio.length > 10 && audio[0] === 0x49 && audio[1] === 0x44 && audio[2] === 0x33) {
+    at = 10 + ((audio[6] & 0x7f) << 21) + ((audio[7] & 0x7f) << 14) + ((audio[8] & 0x7f) << 7) + (audio[9] & 0x7f);
+  }
+  const loud: number[] = [];
+  let frameSeconds = 0.024;
+  while (at < audio.length - 16) {
+    if (audio[at] !== 0xff || (audio[at + 1] & 0xe0) !== 0xe0) { at++; continue; }
+    const version = (audio[at + 1] >> 3) & 3;
+    const layer = (audio[at + 1] >> 1) & 3;
+    const checked = (audio[at + 1] & 1) === 0;
+    const index = (audio[at + 2] >> 4) & 15;
+    const rateIndex = (audio[at + 2] >> 2) & 3;
+    const padded = (audio[at + 2] >> 1) & 1;
+    const mono = ((audio[at + 3] >> 6) & 3) === 3;
+    if (version === 1 || layer !== 1 || index === 0 || index === 15 || rateIndex === 3) { at++; continue; }
+    const one = version === 3;
+    const kbps = (one ? [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320] : [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160])[index];
+    const rate = [44100, 48000, 32000][rateIndex] / (one ? 1 : version === 2 ? 2 : 4);
+    frameSeconds = (one ? 1152 : 576) / rate;
+    // Where the frame's first block of sound keeps its count of values and its gain.
+    const start = (at + 4 + (checked ? 2 : 0)) * 8 + (one ? (mono ? 18 : 20) : mono ? 9 : 10);
+    const bits = (from: number, length: number) => {
+      let value = 0;
+      for (let k = 0; k < length; k++) value = (value << 1) | ((audio[(from + k) >> 3] >> (7 - ((from + k) & 7))) & 1);
+      return value;
+    };
+    // A frame holding no values is silence, whatever gain it carries.
+    loud.push(bits(start + 12, 9) === 0 ? 0 : bits(start + 21, 8));
+    at += Math.max(1, Math.floor(((one ? 144 : 72) * kbps * 1000) / rate) + padded);
+  }
+  if (loud.length < 10) return null;
+  const per = Math.max(1, Math.round(0.24 / frameSeconds));
+  const points: number[] = [];
+  for (let i = 0; i < loud.length; i += per) points.push(Math.max(...loud.slice(i, i + per)));
+  const top = [...points].sort((a, b) => a - b)[Math.floor(points.length * 0.98)] ?? 0;
+  // Each step of gain is a dB and a half. Thirty dB under the loud parts reads as silence.
+  return { shape: points.map((g) => Math.max(0, Math.min(9, Math.round(9 - (top - g) / 2.2)))).join(""), seconds: loud.length * frameSeconds };
+}
+
+/** Draws the sound of chapters recorded before shapes were kept, a few each minute. It costs nothing. */
+async function shapeOld() {
+  const { data } = await service.from("segments").select("audio_path").eq("status", "ready").is("shape", null).not("audio_path", "is", null).limit(40);
+  const paths = [...new Set((data ?? []).map((s: any) => String(s.audio_path)))].slice(0, 6);
+  for (const path of paths) {
+    try {
+      const { data: file } = await service.storage.from(BUCKET).download(path);
+      const read = file ? mp3Shape(new Uint8Array(await file.arrayBuffer())) : null;
+      // An empty shape marks a recording that could not be read, so it is not tried every minute.
+      await service.from("segments").update(read ? { shape: read.shape, duration_sec: Math.round(read.seconds) } : { shape: "" }).eq("audio_path", path).is("shape", null);
+    } catch (err) {
+      console.log("shape:", String(err));
+    }
+  }
+}
+
 // ---------- OpenAI ----------
 
 async function openaiProblem(step: string, res: Response): Promise<Problem> {
@@ -1404,6 +1466,7 @@ const QUEUE_PER_DAY = 10;
  */
 async function tick() {
   if ((await setting("reserve", "on")) === "off") return;
+  await shapeOld().catch(() => {});
   const secret = await setting("cron_secret", "");
   const week = new Date(Date.now() - 7 * 86_400_000).toISOString();
   const day = new Date(Date.now() - 86_400_000).toISOString();
@@ -1787,7 +1850,7 @@ async function start(topicId: string, minutes: number) {
   const voiceNow = (await narrator(me())).voice;
   const { data: heardBefore } = await service
     .from("lessons")
-    .select("id, segments(position, title, target_minutes, script, summary, review, writer_model, source_refs, status, audio_path, voice, voice_model, duration_sec)")
+    .select("id, segments(position, title, target_minutes, script, summary, review, writer_model, source_refs, status, audio_path, voice, voice_model, duration_sec, shape)")
     .eq("topic_id", topic.id)
     .eq("chosen_minutes", total)
     .order("started_at", { ascending: false })
@@ -1861,6 +1924,8 @@ async function start(topicId: string, minutes: number) {
     audio_path: lent[i].audio_path,
     voice: lent[i].voice,
     voice_model: lent[i].voice_model,
+    shape: lent[i].shape ?? null,
+    duration_sec: lent[i].duration_sec ?? null,
     ready_at: new Date().toISOString(),
   }) : ({
     lesson_id: lesson.id,
@@ -1880,6 +1945,8 @@ async function start(topicId: string, minutes: number) {
     audio_path: i === 0 && voiced ? voiced.audio_path : null,
     voice: i === 0 && voiced ? voiced.voice : null,
     voice_model: i === 0 && voiced ? voiced.voice_model : null,
+    shape: i === 0 && voiced ? (voiced as any).shape ?? null : null,
+    duration_sec: i === 0 && voiced ? (voiced as any).duration_sec ?? null : null,
     ready_at: i === 0 && voiced ? new Date().toISOString() : null,
   }));
   const { error: segmentsError } = await db.from("segments").insert(rows);
@@ -1920,6 +1987,9 @@ async function describe(segment: any) {
     review: segment.review ?? null,
     source_refs: segment.source_refs,
     audio_url: segment.status === "ready" ? await link(segment.audio_path) : null,
+    // The sound of the recording, a digit per slice, and its length. The player draws it.
+    shape: segment.status === "ready" ? segment.shape ?? null : null,
+    seconds: segment.duration_sec ?? null,
   };
 }
 
@@ -2072,10 +2142,11 @@ async function saveAudio(segment: any, audio: Uint8Array, voice: string) {
   if (error) throw new Problem(500, "The audio could not be saved.", error.message);
   // Each recording made is a line in the ledger, including one made again for the same chapter.
   mark({ lesson_id: segment.lesson_id, position: segment.position });
+  const sound = mp3Shape(audio);
   await record({ kind: "voice", step: "voicing the chapter", model: VOICE_MODEL, voice, chars: typeof segment.script === "string" ? segment.script.length : null, audio_bytes: audio.length, audio_seconds: mp3Seconds(audio) });
   const { data } = await db
     .from("segments")
-    .update({ status: "ready", audio_path: path, voice_model: VOICE_MODEL, voice, ready_at: new Date().toISOString() })
+    .update({ status: "ready", audio_path: path, voice_model: VOICE_MODEL, voice, ready_at: new Date().toISOString(), shape: sound?.shape ?? "", duration_sec: sound ? Math.round(sound.seconds) : null })
     .eq("id", segment.id)
     .select()
     .single();
