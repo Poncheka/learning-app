@@ -21,7 +21,12 @@ export function SwipeAway({ label, onAway, children, style }: { label: string; o
       onPanResponderMove: (_, g) => x.setValue(Math.min(0, g.dx)),
       onPanResponderRelease: (_, g) => {
         if (g.dx < -FAR_ENOUGH || g.vx < -0.8) {
-          Animated.timing(x, { toValue: -600, duration: 180, useNativeDriver: true }).start(() => away.current());
+          Animated.timing(x, { toValue: -600, duration: 180, useNativeDriver: true }).start(() => {
+            away.current();
+            // On Listen the slot stays and the next story moves into it. Without this the slot
+            // would keep its swiped-away position and show only the dark backing.
+            requestAnimationFrame(() => x.setValue(0));
+          });
         } else back();
       },
       onPanResponderTerminate: back,

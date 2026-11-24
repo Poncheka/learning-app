@@ -53,8 +53,12 @@ const PROPOSER_BRIEF =
   "shaped {\"title\": string, \"tag\": string, \"card\": string}. The title is the subject as named above. The " +
   "card is the headline the listener reads in a list and taps on, before anything is researched. Write it " +
   "from the one ridiculous true fact you chose the subject for, and put that fact in the headline itself, " +
-  "concretely: what happened, and to whom or what. Shape it 'The [someone or something] that [did the " +
-  "absurd thing]', with 'who' for a person, in nine words and fifty characters at most, plain words, no colon and no question. " +
+  "concretely: what happened, and to whom or what. Most are shaped 'The [someone or something] that [did the " +
+  "absurd thing]', with 'who' for a person. About one in three is instead a plain question the story " +
+  "answers, the kind a curious person would stop on: 'Why did medieval people wear pointy shoes?'. A " +
+  "question must name the odd thing itself, must have a real and surprising answer in the article, and is " +
+  "never one that can be answered yes or no. Either shape is nine words and fifty characters at most, " +
+  "counting every letter and space, in plain words with no colon. " +
   "It must work for someone who has never heard of the subject, so describe a person by what they were " +
   "('the pope', 'the dentist', 'the emperor') and never lean on a name. It must not be vague, a pun, or a " +
   "teaser that hides the point: 'The philosopher who searched for an honest man' only describes, and 'The " +

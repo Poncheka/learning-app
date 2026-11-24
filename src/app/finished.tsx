@@ -13,15 +13,17 @@ export default function Finished() {
   // The one place the listener says how it was. Saved against the lesson, and read back
   // when Pliny chooses what to offer next.
   const [verdict, setVerdict] = useState<'loved' | 'no' | null>(null);
-  const give = (which: 'loved' | 'no') => {
-    const next = verdict === which ? null : which;
-    setVerdict(next);
-    sendSignal(next === 'loved' ? 'loved' : next === 'no' ? 'not_for_me' : 'cleared', lesson?.id);
-  };
-
   const leave = (to: '/listen') => {
     stop();
     router.replace(to);
+  };
+  // A verdict is the last thing asked here. It is saved, shown as chosen for a beat, and then
+  // the listener is taken back to Listen without another tap.
+  const give = (which: 'loved' | 'no') => {
+    if (verdict) return;
+    setVerdict(which);
+    sendSignal(which === 'loved' ? 'loved' : 'not_for_me', lesson?.id);
+    setTimeout(() => leave('/listen'), 550);
   };
 
 
@@ -39,7 +41,7 @@ export default function Finished() {
       <Serif size={84} style={[styles.wrap, { marginTop: -16 }]}>
         <Em>a wrap.</Em>
       </Serif>
-      <Text style={styles.summary}>Saved to your history, if you want to listen again.</Text>
+      <Text style={styles.summary}>Saved to your library, if you want to listen again.</Text>
       <View style={styles.verdicts}>
         <OutlineButton label="Loved it" icon="thumbUp" height={64} textSize={17} selected={verdict === 'loved'} style={{ flex: 1, paddingHorizontal: 0 }} onPress={() => give('loved')} />
         <OutlineButton label="Not for me" icon="thumbDown" height={64} textSize={17} selected={verdict === 'no'} style={{ flex: 1, paddingHorizontal: 0 }} onPress={() => give('no')} />
