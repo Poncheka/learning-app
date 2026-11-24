@@ -556,12 +556,20 @@ async function openaiProblem(step: string, res: Response): Promise<Problem> {
   return new Problem(502, `OpenAI failed while ${step}.`, `${res.status}: ${detail.slice(0, 500)}`);
 }
 
-async function ask(step: string, model: string, instructions: string, input: string): Promise<string> {
-  const res = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ model, instructions, input }),
-  });
+/**
+ * `once` marks a prompt that is never sent again, such as a story's plan. Writing a prompt to OpenAI's
+ * cache costs a quarter more than not doing so, and only pays off when the same prompt comes back. So
+ * for these the cache is turned off. If the model does not accept the setting, the call is made without it.
+ */
+async function ask(step: string, model: string, instructions: string, input: string, once = false): Promise<string> {
+  const send = (extra: Record<string, unknown>) =>
+    fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model, instructions, input, ...extra }),
+    });
+  let res = await send(once ? { prompt_cache_options: { mode: "explicit" } } : {});
+  if (once && res.status === 400) res = await send({});
   if (!res.ok) throw await openaiProblem(step, res);
   return await settle(step, model, await res.json());
 }
@@ -840,7 +848,7 @@ const reviewerInput = (story: Story, facts: Fact[], outline: Chapter[], title: s
 async function reviewPlan(story: Story, facts: Fact[], outline: Chapter[], title = "", hook = "", given?: string): Promise<{ outline: Chapter[]; review: Record<string, unknown>; title?: string; hook?: string }> {
   try {
     // A reply collected by an earlier request is used as it is. An empty one means the review could not be had.
-    const reply = given ?? (await ask("reviewing the story plan", WRITER_MODEL, reviewerBrief(story), reviewerInput(story, facts, outline, title, hook)));
+    const reply = given ?? (await ask("reviewing the story plan", WRITER_MODEL, reviewerBrief(story), reviewerInput(story, facts, outline, title, hook), true));
     const verdict = parseJson("reviewing the story plan", reply, "{", "}") as Record<string, unknown>;
     const revised = toChapters(verdict.chapters, facts);
     const usable = revised.length >= 3 && revised.every((c) => c.fact_ids.length > 0);
@@ -1205,7 +1213,7 @@ async function planTopic(asked: string, proposed?: any, force = false, wanted?: 
         .single();
       return started;
     }
-    const planText = await ask("planning the story", WRITER_MODEL, plannerBrief(houseStyle, engine), planInput);
+    const planText = await ask("planning the story", WRITER_MODEL, plannerBrief(houseStyle, engine), planInput, true);
     return await savePlan(topic, asked, planText, sources, engine, began);
   } catch (err) {
     const message = err instanceof Problem ? `${err.message} ${err.detail ?? ""}`.trim() : String(err);
@@ -1734,6 +1742,30 @@ async function start(topicId: string, minutes: number) {
     .maybeSingle();
   if (existing) return await get(existing.id);
 
+  // Someone else may already have heard this story at this length. Their chapters are the same
+  // chapters, written from the same plan and read by the same narrator, so the finished ones are
+  // lent to this listener: nothing is written or recorded twice. Chapters are written in order, each
+  // knowing what came before, so only an unbroken run from the start is lent.
+  const voiceNow = (await narrator(me())).voice;
+  const { data: heardBefore } = await service
+    .from("lessons")
+    .select("id, segments(position, title, target_minutes, script, summary, review, writer_model, source_refs, status, audio_path, voice, voice_model, duration_sec)")
+    .eq("topic_id", topic.id)
+    .eq("chosen_minutes", total)
+    .order("started_at", { ascending: false })
+    .limit(8);
+  let lent: any[] = [];
+  for (const other of heardBefore ?? []) {
+    const theirs = [...(other.segments ?? [])].sort((a: any, b: any) => a.position - b.position);
+    if (theirs.length !== lengths.length) continue;
+    const run: any[] = [];
+    for (const s of theirs) {
+      if (s.position !== run.length + 1 || s.status !== "ready" || !s.audio_path || !s.script || s.voice !== voiceNow || s.title !== chosen[run.length].title) break;
+      run.push(s);
+    }
+    if (run.length > lent.length) lent = run;
+  }
+
   // The opening is the same whatever length is chosen. If it has been voiced before, for a
   // lesson of another length, that recording is used again.
   const { data: voiced } = await db
@@ -1757,7 +1789,9 @@ async function start(topicId: string, minutes: number) {
       source_notes: topic.source_notes,
       sources: topic.sources,
       covered_summary:
-        `Chapter 1, ${outline[0].title}: ${topic.opening_summary || "the opening."}` + (second ? `\nChapter 2, ${chosen[1].title}: ${second.summary || "no summary given."}` : ""),
+        lent.length > 1
+          ? lent.map((s: any) => `Chapter ${s.position}, ${s.title}: ${s.summary || "no summary given."}`).join("\n")
+          : `Chapter 1, ${outline[0].title}: ${topic.opening_summary || "the opening."}` + (second ? `\nChapter 2, ${chosen[1].title}: ${second.summary || "no summary given."}` : ""),
       writer_model: WRITER_MODEL,
     })
     .select()
@@ -1770,7 +1804,25 @@ async function start(topicId: string, minutes: number) {
   );
   // The opening arrives already written. Every row carries the same fields, filled or
   // empty, because rows saved together in one request must all have the same shape.
-  const rows = lengths.map((target_minutes, i) => ({
+  const rows = lengths.map((target_minutes, i) => lent[i] ? ({
+    lesson_id: lesson.id,
+    position: i + 1,
+    title: chosen[i].title,
+    target_minutes: lent[i].target_minutes,
+    brief: chosen[i].brief,
+    fact_ids: chosen[i].fact_ids,
+    blueprint: chosen[i],
+    script: lent[i].script,
+    summary: lent[i].summary,
+    review: lent[i].review,
+    writer_model: lent[i].writer_model,
+    source_refs: lent[i].source_refs ?? [],
+    status: "ready",
+    audio_path: lent[i].audio_path,
+    voice: lent[i].voice,
+    voice_model: lent[i].voice_model,
+    ready_at: new Date().toISOString(),
+  }) : ({
     lesson_id: lesson.id,
     position: i + 1,
     title: chosen[i].title,
@@ -1791,7 +1843,13 @@ async function start(topicId: string, minutes: number) {
     ready_at: i === 0 && voiced ? new Date().toISOString() : null,
   }));
   const { error: segmentsError } = await db.from("segments").insert(rows);
-  if (!segmentsError && voiced) {
+  if (!segmentsError && lent.length > 0) {
+    // One line in the ledger per chapter lent, so what reuse saves can be counted.
+    for (const s of lent) {
+      mark({ topic_id: topic.id, lesson_id: lesson.id, position: s.position });
+      await record({ kind: "voice_reused", step: "reusing another listener's recording", model: s.voice_model ?? VOICE_MODEL, voice: s.voice, audio_seconds: s.duration_sec ?? null });
+    }
+  } else if (!segmentsError && voiced) {
     mark({ topic_id: topic.id, lesson_id: lesson.id, position: 1 });
     await record({ kind: "voice_reused", step: "reusing the opening recording", model: voiced.voice_model ?? VOICE_MODEL, voice: voiced.voice });
   }
