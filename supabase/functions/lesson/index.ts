@@ -1302,6 +1302,8 @@ const RESERVE = 6;
 const DAILY_NEW = 10;
 // At most this many stories are being prepared at once, across everyone.
 const SIDE_BY_SIDE = 3;
+// How many ideas are kept on offer in Explore for each listener. Ideas cost almost nothing to think up.
+const IDEAS_KEPT = 15;
 
 /**
  * The scheduled job. Once a minute it does one piece of preparation for whichever recently active
@@ -1318,20 +1320,28 @@ async function tick() {
   const ids = new Set<string>((heard ?? []).map((l: any) => l.user_id).filter(Boolean));
   const { data: joined } = await service.auth.admin.listUsers({ page: 1, perPage: 200 }).catch(() => ({ data: null as any }));
   for (const u of joined?.users ?? []) if (Date.now() - Date.parse(u.created_at) < 2 * 86_400_000) ids.add(u.id);
+  // Anyone who has asked for a story in Explore is served, however long since they last listened.
+  const { data: asking } = await service.from("topics").select("proposed_for").eq("status", "proposed").not("queued_at", "is", null).limit(200);
+  for (const t of asking ?? []) if (t.proposed_for) ids.add(t.proposed_for);
+  const think = (id: string, fill: boolean) =>
+    fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/shelf`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: allowedKeys()[0] ?? "", "x-pliny-cron": secret },
+      body: JSON.stringify({ action: "propose", as_user: id, fill }),
+    }).catch(() => null);
 
   for (const id of ids) {
     const { count: made } = await service.from("topics").select("id", { count: "exact", head: true }).eq("proposed_for", id).gt("proposed_at", day).in("status", ["ready", "preparing", "failed"]);
     const seat: Record<string, unknown> = { user_id: id, client: service, reserve: true, capped: (made ?? 0) >= DAILY_NEW };
+    // Keep Explore stocked with ideas for this person.
+    const { count: have } = await service.from("topics").select("id", { count: "exact", head: true }).eq("proposed_for", id).eq("status", "proposed").is("queued_at", null);
+    if ((have ?? 0) < IDEAS_KEPT) await think(id, true);
     await who.run(seat, async () => {
       try {
         let step: any = await refill();
         if (step?.needs_proposals && !seat.capped) {
           // No idea is waiting for this person. Think some up as them, then try again.
-          await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/shelf`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json", apikey: allowedKeys()[0] ?? "", "x-pliny-cron": secret },
-            body: JSON.stringify({ action: "propose", as_user: id }),
-          }).catch(() => null);
+          await think(id, false);
           step = await refill();
         }
       } catch (err) {
@@ -1522,6 +1532,21 @@ async function refill() {
     return { ready, prepared: null, working: true };
   }
 
+  // A story this person asked for in Explore is made whether or not their reserve is full.
+  if (reserve && me()) {
+    const { data: asked } = await db.from("topics").select().eq("status", "proposed").eq("proposed_for", me()).not("queued_at", "is", null).order("queued_at").limit(1).maybeSingle();
+    if (asked) {
+      const { count: busy } = await db.from("topics").select("id", { count: "exact", head: true }).eq("status", "preparing");
+      if ((busy ?? 0) >= SIDE_BY_SIDE) return { ready, prepared: null, working: true };
+      const { data: taken } = await db.from("topics").update({ status: "preparing", stage: null, proposed_at: new Date().toISOString() }).eq("id", asked.id).eq("status", "proposed").select().maybeSingle();
+      if (taken) {
+        mark({ worked: true });
+        await planTopic(taken.asked, taken, false, undefined, (await setting("plan_mode", "direct")) === "later");
+      }
+      return { ready, prepared: null, working: true };
+    }
+  }
+
   // Only this person's own stories in progress count. Someone else's are not on their way to this screen.
   let preparing = db.from("topics").select("id", { count: "exact", head: true }).eq("status", "preparing");
   if (me()) preparing = preparing.eq("proposed_for", me());
@@ -1542,7 +1567,8 @@ async function refill() {
   }
   // Ideas thought up for this person come first. Ones thought up for someone else are theirs to prepare.
   const { data: ideas } = await db.from("topics").select().eq("status", "proposed").order("proposed_at").limit(30);
-  const next = (ideas ?? []).find((t: any) => t.proposed_for === me()) ?? null;
+  // Of this person's ideas, the oldest goes first. One they asked for by name was already taken care of above.
+  const next = (ideas ?? []).find((t: any) => t.proposed_for === me() && !t.queued_at) ?? null;
   if (!next) return { ready, prepared: null, working: false, needs_proposals: true };
 
   // Claim it, so two calls at once cannot both pay to plan the same topic.

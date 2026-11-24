@@ -19,6 +19,8 @@ const strokes = {
   down: 'M6 9l6 6 6-6',
   check: 'M5 12l5 5 9-10',
   list: 'M4 6h16M4 12h16M4 18h10',
+  plus: 'M12 5v14M5 12h14',
+  compass: 'M12 3a9 9 0 1 0 0 18a9 9 0 0 0 0-18zM15.5 8.5l-2 5-5 2 2-5z',
   thumbUp: 'M7 10v11M7 10l4-7c1.5 0 2.5 1 2.5 2.5V8h5a2 2 0 0 1 2 2.3l-1.2 8A2 2 0 0 1 17.3 20H7',
   thumbDown: 'M17 14V3M17 14l-4 7c-1.5 0-2.5-1-2.5-2.5V16H5.5a2 2 0 0 1-2-2.3l1.2-8A2 2 0 0 1 6.7 4H17',
 } as const;
@@ -191,17 +193,18 @@ export function Screen({ children, style, flush }: { children: ReactNode; style?
 const tabs = [
   { key: 'library', label: 'History', icon: 'list', href: '/library' },
   { key: 'listen', label: 'Listen', icon: 'star', href: '/listen' },
-  { key: 'interests', label: 'Interests', icon: 'interests', href: '/interests' },
+  { key: 'explore', label: 'Explore', icon: 'compass', href: '/explore' },
 ] as const;
 
-export function TabBar({ active }: { active: (typeof tabs)[number]['key'] }) {
+/** `within` marks a screen that sits inside a tab, such as Interests under Explore: tapping the lit tab then goes back to its front page. */
+export function TabBar({ active, within }: { active: (typeof tabs)[number]['key']; within?: boolean }) {
   const insets = useSafeAreaInsets();
   return (
     <View style={[styles.tabBar, { paddingBottom: Math.max(insets.bottom - 8, 18) }]} accessibilityRole="tablist">
       {tabs.map((tab) => {
         const on = tab.key === active;
         return (
-          <Pressable key={tab.key} accessibilityRole="tab" accessibilityState={{ selected: on }} style={styles.tab} onPress={() => (on ? undefined : router.replace(tab.href))}>
+          <Pressable key={tab.key} accessibilityRole="tab" accessibilityState={{ selected: on }} style={styles.tab} onPress={() => (on && !within ? undefined : router.replace(tab.href))}>
             <Icon name={tab.icon} size={24} weight={2} color={on ? colors.ink : colors.gray} />
             <Text style={{ fontFamily: on ? fonts.bodySemi : fonts.body, fontSize: 13, color: on ? colors.ink : colors.gray }}>{tab.label}</Text>
             <View style={[styles.tabMark, on && { backgroundColor: colors.ink }]} />

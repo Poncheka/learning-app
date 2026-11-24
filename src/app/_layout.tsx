@@ -88,6 +88,7 @@ export default function RootLayout() {
         <Stack.Screen name="listen" options={{ animation: 'fade' }} />
         <Stack.Screen name="library" options={{ animation: 'fade' }} />
         <Stack.Screen name="interests" options={{ animation: 'fade' }} />
+        <Stack.Screen name="explore" options={{ animation: 'fade' }} />
         <Stack.Screen name="chapters" options={{ presentation: 'modal' }} />
       </Stack>
     </>

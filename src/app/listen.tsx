@@ -7,7 +7,7 @@ import { CardArt, pickBackgrounds } from '@/components/covers';
 import type { CardBackground } from '@/components/cardBackgrounds';
 import { NowPlayingBar } from '@/components/NowPlayingBar';
 import { SwipeAway } from '@/components/SwipeAway';
-import { Em, OutlineButton, Screen, Serif, TabBar, Wordmark } from '@/components/ui';
+import { Em, Icon, OutlineButton, Screen, Serif, TabBar, Wordmark } from '@/components/ui';
 import type { Topic } from '@/lib/api';
 import { useTopics } from '@/state/topics';
 import { colors, fonts, gutter } from '@/theme';
@@ -101,10 +101,22 @@ export default function Listen() {
             {row.map((i) => (
               <Card key={shown[i].id} topic={shown[i]} background={backgrounds[i]} isNew={arrived.has(shown[i].id)} onPress={() => choose(shown[i])} onAway={() => dismiss(shown[i])} />
             ))}
-            {/* An odd one out keeps to its half, so it never stretches across the row. */}
-            {row.length === 1 ? <View style={styles.smallSlot} pointerEvents="none" /> : null}
+            {/* An odd one out keeps to its half. The other half is the way to more stories. */}
+            {row.length === 1 ? (
+              <Pressable accessibilityRole="link" onPress={() => router.replace('/explore')} style={[styles.smallSlot, styles.more, styles.moreTile]}>
+                <Icon name="arrow" size={22} />
+                <Text style={styles.moreText}>Find more in Explore</Text>
+              </Pressable>
+            ) : null}
           </View>
         ))}
+
+        {shown.length > 0 && rest.length % 2 === 0 ? (
+          <Pressable accessibilityRole="link" onPress={() => router.replace('/explore')} style={[styles.more, styles.moreRow]}>
+            <Text style={styles.moreText}>Find more in Explore</Text>
+            <Icon name="arrow" size={22} />
+          </Pressable>
+        ) : null}
 
         {/* While the first stories load, the cards' places are held, so the screen does not jump. */}
         {shown.length === 0 && loading ? (
@@ -156,6 +168,10 @@ const styles = StyleSheet.create({
   leadTag: { marginTop: 12, height: 28, borderRadius: 14, paddingHorizontal: 12 },
   tagText: { fontFamily: fonts.bodyMedium, fontSize: 10, letterSpacing: 1.6, textTransform: 'uppercase' },
   leadTagText: { fontSize: 11, letterSpacing: 2 },
+  more: { borderWidth: 1.5, borderColor: colors.ink, borderStyle: 'dashed' },
+  moreTile: { justifyContent: 'flex-end', gap: 8, padding: 14 },
+  moreRow: { height: 56, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16 },
+  moreText: { fontFamily: fonts.bodySemi, fontSize: 16, lineHeight: 20, color: colors.ink },
   holding: { backgroundColor: colors.line, opacity: 0.6 },
   empty: { flexGrow: 1, minHeight: 220, alignItems: 'center', justifyContent: 'center', gap: 14, paddingHorizontal: 12 },
   note: { fontFamily: fonts.body, fontSize: 16, lineHeight: 22, color: colors.gray, textAlign: 'center' },

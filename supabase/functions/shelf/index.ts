@@ -50,8 +50,10 @@ const PROPOSER_BRIEF =
   "You are told which interest each subject must come from, one subject per line, in order. Stay inside " +
   "that interest, and find the subject there that best passes the test. A line marked \"Off the map\" asks " +
   "for something they did not ask for but would be glad to hear.\n\n" +
-  "Reply with only a JSON array of objects, each shaped {\"title\": string, \"tag\": string}. The title is the " +
-  "subject as named above. The tag is the one interest from their list that the subject grew out of, " +
+  "Reply with only a JSON array of objects, each shaped {\"title\": string, \"tag\": string, \"card\": string}. The title is the " +
+  "subject as named above. The card is a headline for it that the listener sees before anything is researched: nine " +
+  "words at most, shaped 'The [someone or something] that [did the absurd thing]', with 'who' for a person, and " +
+  "promising nothing you are not sure is true. The tag is the one interest from their list that the subject grew out of, " +
   "copied exactly as it was given to you, in the same order. For a subject that wanders off their map, the tag is \"Off the map\".";
 
 // The narrators offered in Settings. Each id is a voice the lesson function accepts.
@@ -156,7 +158,9 @@ async function propose() {
   // Enough means both: at least one story of their own ready or on its way, and three to choose
   // from in all. Shared stories make up the three where there are some. Where there are not,
   // more ideas of their own are thought up.
-  if (own.some((t: any) => t.status === "proposed") || (own.length >= OWN_TARGET && unplayed.length >= ((who.getStore() as any)?.reserve ? 6 : READY_TARGET))) return json({ proposed: [] });
+  // The scheduled job keeps a stock of ideas for Explore, so for it having some already is no reason to stop.
+  const stocking = Boolean((who.getStore() as any)?.fill);
+  if (!stocking && (own.some((t: any) => t.status === "proposed") || (own.length >= OWN_TARGET && unplayed.length >= ((who.getStore() as any)?.reserve ? 6 : READY_TARGET)))) return json({ proposed: [] });
   // Someone with no interests yet listens from the shared shelf. Nothing is made for them until they pick some.
   if (labels.length === 0 && unplayed.length >= ((who.getStore() as any)?.reserve ? 6 : READY_TARGET)) return json({ proposed: [] });
   if (!OPENAI_KEY) return json({ error: "OPENAI_API_KEY is not set as an edge function secret." }, 500);
@@ -216,12 +220,13 @@ async function propose() {
     if (item.type !== "message") continue;
     for (const part of item.content ?? []) if (part.type === "output_text" && typeof part.text === "string") text += part.text;
   }
-  let proposed: { title: string; tag: string | null }[] = [];
+  let proposed: { title: string; tag: string | null; card?: string }[] = [];
   try {
     const parsed = JSON.parse(text.slice(text.indexOf("["), text.lastIndexOf("]") + 1));
     proposed = (Array.isArray(parsed) ? parsed : [])
       .map((t: any, i: number) => ({
         title: String(typeof t === "string" ? t : t?.title ?? "").trim(),
+        card: String(t?.card ?? "").trim().replace(/[.\s]+$/, "").slice(0, 90),
         // The tag is the turn it was asked for. If the model named another of the listener's
         // tags, that is believed. Anything else counts as a wildcard.
         tag: labels.find((l) => l.toLowerCase() === String(t?.tag ?? "").trim().toLowerCase()) ?? (slots[i] && slots[i] !== "Off the map" ? slots[i] : "Off the map"),
@@ -232,9 +237,43 @@ async function propose() {
     return json({ error: "The proposed topics could not be read." }, 502);
   }
   if (proposed.length === 0) return json({ proposed: [] });
-  const { error } = await db.from("topics").insert(proposed.map((t) => ({ asked: t.title, title: t.title, tag: t.tag, status: "proposed", proposed_for: me() })));
+  const { error } = await db.from("topics").insert(proposed.map((t) => ({ asked: t.title, title: t.card || t.title, tag: t.tag, status: "proposed", proposed_for: me() })));
   if (error) return json({ error: "The proposed topics could not be saved.", detail: error.message }, 500);
   return json({ proposed, learnedFrom: { liked: liked.length, turnedDown: disliked.length } });
+}
+
+// How many stories a person may ask for in a day, and how many of theirs may be waiting unheard at once.
+const QUEUE_PER_DAY = 10;
+const QUEUE_WAITING = 3;
+
+/** Where this person stands against the two limits. */
+async function queueState() {
+  const { data } = await service
+    .from("topics")
+    .select("id, status, queued_at, lessons(id, user_id), dismissals(topic_id, user_id)")
+    .eq("proposed_for", me())
+    .not("queued_at", "is", null)
+    .in("status", ["proposed", "preparing", "ready"]);
+  const theirs = (rows: any[] | null) => (rows ?? []).filter((r: any) => r.user_id === me());
+  const day = Date.now() - 86_400_000;
+  const rows = data ?? [];
+  // Waiting means asked for and not yet heard: still being made, or finished and neither played nor swiped away.
+  const waiting = rows.filter((t: any) => t.status !== "ready" || (theirs(t.lessons).length === 0 && theirs(t.dismissals).length === 0));
+  return { today: rows.filter((t: any) => Date.parse(t.queued_at) > day).length, waiting: waiting.length, preparing: waiting.filter((t: any) => t.status !== "ready").length };
+}
+
+/** The ideas on offer in Explore, newest first, with where the person stands against the limits. */
+async function ideas() {
+  const { data } = await service.from("topics").select("id, title, tag").eq("proposed_for", me()).eq("status", "proposed").is("queued_at", null).order("proposed_at", { ascending: false }).limit(40);
+  const state = await queueState();
+  return {
+    ideas: (data ?? []).map((t: any) => ({ id: t.id, title: t.title, tag: t.tag ?? null })),
+    queued_today: state.today,
+    per_day: QUEUE_PER_DAY,
+    waiting: state.waiting,
+    waiting_limit: QUEUE_WAITING,
+    preparing: state.preparing,
+  };
 }
 
 Deno.serve((req: Request) => who.run({}, () => handle(req)));
@@ -274,7 +313,7 @@ async function handle(req: Request): Promise<Response> {
   if (scheduler) {
     // The scheduler may only think up ideas, and only for a named person.
     if (body.action !== "propose" || !isId(body.as_user)) return json({ error: "Not allowed." }, 401);
-    Object.assign(who.getStore() ?? {}, { user_id: body.as_user, client: service, reserve: true });
+    Object.assign(who.getStore() ?? {}, { user_id: body.as_user, client: service, reserve: true, fill: body.fill === true });
   }
 
   if (body.action === "lessons") return await listLessons();
@@ -300,6 +339,34 @@ async function handle(req: Request): Promise<Response> {
     // Hidden, not deleted: the scripts and audio stay, so nothing paid for is thrown away.
     const { error } = await db.from("lessons").update({ hidden: true }).eq("id", body.lesson_id);
     if (error) return json({ error: "The lesson could not be removed.", detail: error.message }, 500);
+    return json({ ok: true });
+  }
+
+  // ---------- Explore: ideas a person can ask for ----------
+  if (body.action === "ideas") return json(await ideas());
+
+  if (body.action === "queue") {
+    if (!isId(body.topic_id)) return json({ error: "Give a topic_id." }, 400);
+    const state = await queueState();
+    if (state.waiting >= QUEUE_WAITING) return json({ error: "Listen to one of your queued stories to add more.", limit: "waiting" }, 429);
+    if (state.today >= QUEUE_PER_DAY) return json({ error: "That is today's limit. You can queue more tomorrow.", limit: "day" }, 429);
+    const { data: queued } = await service
+      .from("topics")
+      .update({ queued_at: new Date().toISOString() })
+      .eq("id", body.topic_id)
+      .eq("proposed_for", me())
+      .eq("status", "proposed")
+      .is("queued_at", null)
+      .select("id")
+      .maybeSingle();
+    if (!queued) return json({ error: "That idea is no longer available." }, 409);
+    return json({ ok: true, ...(await ideas()) });
+  }
+
+  if (body.action === "dismiss_idea") {
+    if (!isId(body.topic_id)) return json({ error: "Give a topic_id." }, 400);
+    // Only an idea of this person's own that nothing has been made from yet.
+    await service.from("topics").update({ status: "hidden", error: "Swiped away in Explore." }).eq("id", body.topic_id).eq("proposed_for", me()).eq("status", "proposed").is("queued_at", null);
     return json({ ok: true });
   }
 

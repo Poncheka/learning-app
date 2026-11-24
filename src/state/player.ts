@@ -126,6 +126,9 @@ function teardown() {
   }
 }
 
+// One cover for every story for now, served from the project's public GitHub repo.
+const COVER = 'https://raw.githubusercontent.com/Poncheka/learning-app/main/docs/cover.png';
+
 export const usePlayer = create<PlayerState>((set, get) => {
   // The sting is the second item in the queue, so every chapter after the opening sits one
   // place later in the queue than its chapter number. These two translate between them.
@@ -135,7 +138,8 @@ export const usePlayer = create<PlayerState>((set, get) => {
   const showOnLockScreen = (index: number, first: boolean) => {
     const { lesson } = get();
     if (!playlist || !lesson) return;
-    const metadata = { title: lesson.segments[index].title, artist: 'Pliny', albumTitle: lesson.title };
+    // The cover shows on the lock screen, in the island at the top of the phone, and on a car's screen.
+    const metadata = { title: lesson.segments[index].title, artist: 'Pliny', albumTitle: lesson.title, artworkUrl: COVER };
     if (first) playlist.setActiveForLockScreen(true, metadata, { showSeekBackward: true, showSeekForward: true });
     else playlist.updateLockScreenMetadata(metadata);
   };

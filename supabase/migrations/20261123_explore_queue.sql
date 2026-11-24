@@ -1,0 +1,1 @@
+-- Applied through the Supabase connector on 23 Nov 2026: adds topics.queued_at, set when a listener asks for an idea in Explore, and an index on it.

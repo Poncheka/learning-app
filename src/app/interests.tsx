@@ -126,7 +126,7 @@ export default function Interests() {
       </KeyboardAvoidingView>
       <NowPlayingBar />
       <View style={{ height: 10 }} />
-      <TabBar active="interests" />
+      <TabBar active="explore" within />
     </Screen>
   );
 }
