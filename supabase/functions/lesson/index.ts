@@ -1304,6 +1304,9 @@ const DAILY_NEW = 10;
 const SIDE_BY_SIDE = 3;
 // How many ideas are kept on offer in Explore for each listener. Ideas cost almost nothing to think up.
 const IDEAS_KEPT = 40;
+// How many of a person's queued stories may be made or waiting unheard at once, and how many are made in a day.
+const QUEUE_WAITING = 3;
+const QUEUE_PER_DAY = 10;
 
 /**
  * The scheduled job. Once a minute it does one piece of preparation for whichever recently active
@@ -1535,7 +1538,17 @@ async function refill() {
   // A story this person asked for in Explore is made whether or not their reserve is full.
   if (reserve && me()) {
     const { data: asked } = await db.from("topics").select().eq("status", "proposed").eq("proposed_for", me()).not("queued_at", "is", null).order("queued_at").limit(1).maybeSingle();
+    // The queue is a list of wishes, made a few at a time: at most QUEUE_WAITING of a person's queued stories
+    // are being made or waiting unheard at once, and at most QUEUE_PER_DAY are made in a day.
+    let room = false;
     if (asked) {
+      const { data: theirs } = await db.from("topics").select("id, status, proposed_at, lessons(id, user_id), dismissals(topic_id, user_id)").eq("proposed_for", me()).not("queued_at", "is", null).in("status", ["preparing", "ready"]);
+      const own = (rows: any[] | null) => (rows ?? []).filter((r: any) => r.user_id === me());
+      const waiting = (theirs ?? []).filter((t: any) => t.status !== "ready" || (own(t.lessons).length === 0 && own(t.dismissals).length === 0)).length;
+      const today = (theirs ?? []).filter((t: any) => Date.parse(t.proposed_at) > Date.now() - 86_400_000).length;
+      room = waiting < QUEUE_WAITING && today < QUEUE_PER_DAY;
+    }
+    if (asked && room) {
       const { count: busy } = await db.from("topics").select("id", { count: "exact", head: true }).eq("status", "preparing");
       if ((busy ?? 0) >= SIDE_BY_SIDE) return { ready, prepared: null, working: true };
       const { data: taken } = await db.from("topics").update({ status: "preparing", stage: null, proposed_at: new Date().toISOString() }).eq("id", asked.id).eq("status", "proposed").select().maybeSingle();

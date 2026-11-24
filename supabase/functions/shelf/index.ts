@@ -20,6 +20,8 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 
 const OPENAI_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
 const SCOUT_MODEL = Deno.env.get("OPENAI_SCOUT_MODEL") ?? "gpt-6-luna";
+// Ideas are what a listener judges Pliny by before hearing anything, so they get the stronger model. A batch of six costs about half a cent.
+const IDEA_MODEL = Deno.env.get("OPENAI_IDEA_MODEL") ?? "gpt-6.1-terra";
 // How many topics are kept waiting on the Listen screen.
 const READY_TARGET = 3;
 // How many stories from a person's own interests are kept ready or on their way. See the lesson function.
@@ -27,36 +29,41 @@ const OWN_TARGET = 1;
 
 const PROPOSER_BRIEF =
   "You choose what Pliny, an audio app for the endlessly curious, offers its listener next. Given their " +
-  "interests and what they have made of past lessons, propose subjects for audio lessons.\n\n" +
-  "The test for every subject: it has one true fact at its heart that sounds ridiculous, the kind you " +
-  "would blurt out to a friend, and that grabs someone who has never heard of the subject. Pan Am kept a " +
-  "waiting list for flights to the moon. Australia's army lost a war against emus. An Egyptian mummy was " +
-  "received with military honors. There is a reason we drive on the right side of the road. If the only " +
-  "way to pitch a subject is by a name the listener would not know, such as an obscure person, town or " +
-  "event, it fails the test: either find the ridiculous fact inside it or choose something else. Everyday " +
-  "things with a strange history are as good as strange episodes.\n\n" +
-  "Each subject must be something Wikipedia covers in depth. Name it the way Wikipedia would, so it can be " +
-  "looked up: 'Emu War', 'Pan Am First Moon Flights Club', 'Left- and right-hand traffic'. The catchy " +
-  "title is written later, from the facts, so do not try to write it here.\n\n" +
-  "Learn from their taste. Work out what the lessons they loved have in common, in subject, period, scale " +
-  "and mood, and offer more in that spirit. Work out what the ones they turned down or swiped away have " +
-  "in common, and steer clear of it. Their reactions shape the kind of story you look for, never which interest " +
-  "it comes from. Never repeat a subject already offered, under any name.\n\n" +
-  "Keep the set varied. The subjects in one reply must be of different kinds and grow out of different " +
-  "interests: never two about animals, or two hoaxes, or two from the same century. Read their taste for " +
-  "its spirit, not its surface. Someone who loved a story about an army losing to emus likes absurd true " +
-  "episodes, not animals. Look at what was offered most recently, listed first, and do not offer more of " +
-  "the same kind.\n\n" +
-  "You are told which interest each subject must come from, one subject per line, in order. Stay inside " +
-  "that interest, and find the subject there that best passes the test. A line marked \"Off the map\" asks " +
-  "for something they did not ask for but would be glad to hear.\n\n" +
-  "Reply with only a JSON array of objects, each shaped {\"title\": string, \"tag\": string, \"card\": string}. The title is the " +
-  "subject as named above. The card is a headline for it that the listener sees before anything is researched: nine " +
-  "words at most, shaped 'The [someone or something] that [did the absurd thing]', with 'who' for a person, and " +
-  "promising nothing you are not sure is true. The card must hold the surprising part itself, not hint at it: " +
-  "'The philosopher who searched for an honest man' only describes, while 'The philosopher who lived in a jar and told " +
-  "Alexander to move' makes someone want to hear it. The tag is the one interest from their list that the subject grew out of, " +
-  "copied exactly as it was given to you, in the same order. For a subject that wanders off their map, the tag is \"Off the map\".";
+  "interests and what they have made of past lessons, propose subjects for audio lessons.\n\nThe test for " +
+  "every subject: it has one true fact at its heart that sounds ridiculous, the kind you would blurt out to " +
+  "a friend, and that grabs someone who has never heard of the subject. Pan Am kept a waiting list for " +
+  "flights to the moon. Australia's army lost a war against emus. An Egyptian mummy was received with " +
+  "military honors. There is a reason we drive on the right side of the road. If the only way to pitch a " +
+  "subject is by a name the listener would not know, such as an obscure person, town or event, it fails the " +
+  "test: either find the ridiculous fact inside it or choose something else. Everyday things with a strange " +
+  "history are as good as strange episodes.\n\nEach subject must be something Wikipedia covers in depth. Name " +
+  "it the way Wikipedia would, so it can be looked up: 'Emu War', 'Pan Am First Moon Flights Club', 'Left- " +
+  "and right-hand traffic'. That name is only for looking it up. The listener sees the card, described " +
+  "below.\n\nLearn from their taste. Work out what the lessons they loved have in common, in subject, period, " +
+  "scale and mood, and offer more in that spirit. Work out what the ones they turned down or swiped away " +
+  "have in common, and steer clear of it. Their reactions shape the kind of story you look for, never which " +
+  "interest it comes from. Never repeat a subject already offered, under any name.\n\nKeep the set varied. " +
+  "The subjects in one reply must be of different kinds and grow out of different interests: never two " +
+  "about animals, or two hoaxes, or two from the same century. Read their taste for its spirit, not its " +
+  "surface. Someone who loved a story about an army losing to emus likes absurd true episodes, not animals. " +
+  "Look at what was offered most recently, listed first, and do not offer more of the same kind.\n\nYou are " +
+  "told which interest each subject must come from, one subject per line, in order. Stay inside that " +
+  "interest, and find the subject there that best passes the test. A line marked \"Off the map\" asks for " +
+  "something they did not ask for but would be glad to hear.\n\nReply with only a JSON array of objects, each " +
+  "shaped {\"title\": string, \"tag\": string, \"card\": string}. The title is the subject as named above. The " +
+  "card is the headline the listener reads in a list and taps on, before anything is researched. Write it " +
+  "from the one ridiculous true fact you chose the subject for, and put that fact in the headline itself, " +
+  "concretely: what happened, and to whom or what. Shape it 'The [someone or something] that [did the " +
+  "absurd thing]', with 'who' for a person, in twelve words at most, plain words, no colon and no question. " +
+  "It must work for someone who has never heard of the subject, so describe a person by what they were " +
+  "('the pope', 'the dentist', 'the emperor') and never lean on a name. It must not be vague, a pun, or a " +
+  "teaser that hides the point: 'The philosopher who searched for an honest man' only describes, and 'The " +
+  "war that changed everything' says nothing, while 'The philosopher who lived in a jar and told Alexander " +
+  "the Great to move' and 'The airline that sold tickets to the moon' make someone want to hear it. Promise " +
+  "only what you are sure is true and is told in the Wikipedia article. If a subject has no fact that makes " +
+  "a headline like that, choose a different subject. The tag is the one interest from their list that the " +
+  "subject grew out of, copied exactly as it was given to you, in the same order. For a subject that " +
+  "wanders off their map, the tag is \"Off the map\".";
 
 // The narrators offered in Settings. Each id is a voice the lesson function accepts.
 const NARRATORS = [
@@ -211,7 +218,7 @@ async function propose() {
     method: "POST",
     headers: { Authorization: `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
     body: JSON.stringify({
-      model: SCOUT_MODEL,
+      model: IDEA_MODEL,
       instructions: PROPOSER_BRIEF,
       input:
         `Interests: ${(tags ?? []).map((t) => t.label).join(", ") || "none listed yet, so range widely"}\n` +
@@ -234,7 +241,7 @@ async function propose() {
     proposed = (Array.isArray(parsed) ? parsed : [])
       .map((t: any, i: number) => ({
         title: String(typeof t === "string" ? t : t?.title ?? "").trim(),
-        card: String(t?.card ?? "").trim().replace(/[.\s]+$/, "").slice(0, 90),
+        card: String(t?.card ?? "").trim().replace(/[.\s]+$/, "").slice(0, 110),
         // The tag is the turn it was asked for. If the model named another of the listener's
         // tags, that is believed. Anything else counts as a wildcard.
         tag: labels.find((l) => l.toLowerCase() === String(t?.tag ?? "").trim().toLowerCase()) ?? (slots[i] && slots[i] !== "Off the map" ? slots[i] : "Off the map"),
@@ -250,15 +257,18 @@ async function propose() {
   return json({ proposed, learnedFrom: { liked: liked.length, turnedDown: disliked.length } });
 }
 
-// How many stories a person may ask for in a day, and how many of theirs may be waiting unheard at once.
+// How many of a person's queued stories are made in a day, and how many of them may be made or waiting
+// unheard at once. The same two numbers are in the lesson function, which does the making.
 const QUEUE_PER_DAY = 10;
 const QUEUE_WAITING = 3;
+// The longest a queue may grow.
+const QUEUE_LONGEST = 30;
 
 /** Where this person stands against the two limits. */
 async function queueState() {
   const { data } = await service
     .from("topics")
-    .select("id, status, queued_at, lessons(id, user_id), dismissals(topic_id, user_id)")
+    .select("id, status, queued_at, proposed_at, lessons(id, user_id), dismissals(topic_id, user_id)")
     .eq("proposed_for", me())
     .not("queued_at", "is", null)
     .in("status", ["proposed", "preparing", "ready"]);
@@ -266,8 +276,16 @@ async function queueState() {
   const day = Date.now() - 86_400_000;
   const rows = data ?? [];
   // Waiting means asked for and not yet heard: still being made, or finished and neither played nor swiped away.
-  const waiting = rows.filter((t: any) => t.status !== "ready" || (theirs(t.lessons).length === 0 && theirs(t.dismissals).length === 0));
-  return { today: rows.filter((t: any) => Date.parse(t.queued_at) > day).length, waiting: waiting.length, preparing: waiting.filter((t: any) => t.status !== "ready").length };
+  const made = rows.filter((t: any) => t.status !== "proposed");
+  // Waiting means being made, or finished and neither played nor swiped away.
+  const waiting = made.filter((t: any) => t.status !== "ready" || (theirs(t.lessons).length === 0 && theirs(t.dismissals).length === 0));
+  return {
+    today: made.filter((t: any) => Date.parse(t.proposed_at) > day).length,
+    waiting: waiting.length,
+    preparing: waiting.filter((t: any) => t.status !== "ready").length,
+    // Asked for, and not yet begun.
+    in_queue: rows.filter((t: any) => t.status === "proposed").length,
+  };
 }
 
 /** The ideas on offer in Explore, newest first, with where the person stands against the limits. */
@@ -287,6 +305,7 @@ async function ideas() {
     waiting: state.waiting,
     waiting_limit: QUEUE_WAITING,
     preparing: state.preparing,
+    in_queue: state.in_queue,
   };
 }
 
@@ -374,9 +393,10 @@ async function handle(req: Request): Promise<Response> {
 
   if (body.action === "queue") {
     if (!isId(body.topic_id)) return json({ error: "Give a topic_id." }, 400);
+    // Asking is never refused for being too keen. The queue is a list of wishes: the server makes them a few
+    // at a time, and the limits apply to the making, not the asking. Only a very long queue is turned away.
     const state = await queueState();
-    if (state.waiting >= QUEUE_WAITING) return json({ error: "Listen to one of your queued stories to add more.", limit: "waiting" }, 429);
-    if (state.today >= QUEUE_PER_DAY) return json({ error: "That is today's limit. You can queue more tomorrow.", limit: "day" }, 429);
+    if (state.in_queue >= QUEUE_LONGEST) return json({ error: "Your queue is full. Listen to a few, then add more.", limit: "queue" }, 429);
     const { data: queued } = await service
       .from("topics")
       .update({ queued_at: new Date().toISOString() })
@@ -387,7 +407,9 @@ async function handle(req: Request): Promise<Response> {
       .select("id")
       .maybeSingle();
     if (!queued) return json({ error: "That idea is no longer available." }, 409);
-    return json({ ok: true, ...(await ideas()) });
+    // It starts now if there is room among the ones being made or waiting to be heard. Otherwise it takes its turn.
+    const starts = state.in_queue === 0 && state.waiting < QUEUE_WAITING && state.today < QUEUE_PER_DAY;
+    return json({ ok: true, starts, ahead: state.in_queue, ...(await ideas()) });
   }
 
   if (body.action === "dismiss_idea") {

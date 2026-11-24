@@ -27,6 +27,8 @@ export default function Explore() {
     });
   const [filter, setFilter] = useState<string | null>(null);
   const [banner, setBanner] = useState<Banner>(null);
+  // Stories asked for and not yet begun. They are made a few at a time.
+  const [inQueue, setInQueue] = useState(0);
   const hide = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // The banner slides up as it appears, so a tap is answered the moment it lands.
@@ -48,6 +50,7 @@ export default function Explore() {
         kept = { ideas: found.ideas, tags: found.tags ?? [] };
         setIdeasNow(found.ideas);
         setTags(found.tags ?? []);
+        setInQueue(found.in_queue ?? 0);
       })
       .catch(() => setIdeas((had) => had ?? []));
   }, []);
@@ -72,6 +75,11 @@ export default function Explore() {
     // Said at once, without waiting for the server. It nearly always agrees, and when it does not, the reason replaces this.
     say({ title: 'Queued. It will be on your Listen tab.', note: 'Ready in about 5 minutes' });
     queueIdea(idea.id)
+      .then((answer) => {
+        setInQueue(answer.in_queue ?? 0);
+        // With others ahead of it, say where it stands instead of promising minutes.
+        if (!answer.starts) say({ title: 'Queued. It will be on your Listen tab.', note: answer.ahead > 0 ? `Number ${answer.ahead + 1} in your queue. Stories are made a few at a time.` : 'It is next. Stories are made a few at a time.' });
+      })
       .catch((err) => {
         settle();
         setIdeas(before);
@@ -113,13 +121,15 @@ export default function Explore() {
       </ScrollView>
       <View style={{ height: 12 }} />
 
+      {inQueue > 0 ? <Text style={styles.queue}>{inQueue === 1 ? '1 story in your queue.' : `${inQueue} stories in your queue.`} They arrive on Listen as they are made.</Text> : null}
+
       <ScrollView style={styles.scroll} contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
         {ideas === null ? <ActivityIndicator color={colors.ink} style={{ marginTop: 40 }} /> : null}
         {shown.map((idea) => (
           <SwipeAway key={idea.id} label="Not for me" onAway={() => away(idea)} style={styles.slot}>
             <Pressable accessibilityRole="button" accessibilityLabel={`${idea.title}. Add to my stories.`} onPress={() => queue(idea)} style={({ pressed }) => [styles.row, pressed && { opacity: 0.85 }]}>
               <CoverTile id={idea.id} size={TILE} />
-              <Text style={styles.title} numberOfLines={3}>
+              <Text style={[styles.title, { alignSelf: 'center' }]}>
                 {idea.title.replace(/[.\s]+$/, '')}
               </Text>
               <View style={styles.plus}>
@@ -161,12 +171,14 @@ const styles = StyleSheet.create({
   chipOn: { backgroundColor: colors.ink },
   chipText: { fontFamily: fonts.bodySemi, fontSize: 15, color: colors.ink },
   editText: { fontFamily: fonts.bodySemi, fontSize: 15, color: colors.ink, textDecorationLine: 'underline' },
+  queue: { fontFamily: fonts.body, fontSize: 14, lineHeight: 19, color: colors.gray, marginHorizontal: gutter, marginBottom: 10 },
   scroll: { flex: 1, minHeight: 0 },
   list: { paddingHorizontal: gutter, paddingBottom: 12, gap: 8 },
   slot: { overflow: 'hidden' },
-  row: { flexDirection: 'row', alignItems: 'center', backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, minHeight: TILE },
-  title: { flex: 1, fontFamily: fonts.bodySemi, fontSize: 17, lineHeight: 21, color: colors.ink, paddingHorizontal: 14 },
-  plus: { width: 44, height: 44, borderRadius: 22, borderWidth: 1.5, borderColor: colors.ink, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  row: { flexDirection: 'row', alignItems: 'stretch', backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, minHeight: TILE },
+  // The whole headline always shows. A long one makes its row taller.
+  title: { flex: 1, fontFamily: fonts.bodySemi, fontSize: 17, lineHeight: 21, color: colors.ink, paddingHorizontal: 14, paddingVertical: 10 },
+  plus: { width: 44, height: 44, borderRadius: 22, borderWidth: 1.5, borderColor: colors.ink, alignItems: 'center', justifyContent: 'center', marginRight: 12, alignSelf: 'center' },
   empty: { alignItems: 'center', gap: 12, paddingVertical: 48, paddingHorizontal: 12 },
   note: { fontFamily: fonts.body, fontSize: 16, lineHeight: 22, color: colors.gray, textAlign: 'center' },
   banner: { marginHorizontal: gutter, marginBottom: 8, backgroundColor: colors.ink, paddingVertical: 14, paddingHorizontal: 16 },

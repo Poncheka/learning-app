@@ -171,17 +171,17 @@ export async function hideLesson(id: string): Promise<void> {
 /** "Not interested": takes a topic off the Listen screen for good. */
 /** An idea for a story, on offer in Explore. Nothing has been made from it yet. */
 export type Idea = { id: string; title: string; tag: string | null };
-export type Ideas = { ideas: Idea[]; tags?: string[]; queued_today: number; per_day: number; waiting: number; waiting_limit: number; preparing: number };
+export type Ideas = { ideas: Idea[]; tags?: string[]; in_queue?: number; queued_today: number; per_day: number; waiting: number; waiting_limit: number; preparing: number };
 
 export async function listIdeas(): Promise<Ideas> {
   if (MOCK) return { ideas: [], queued_today: 0, per_day: 10, waiting: 0, waiting_limit: 3, preparing: 0 };
   return await call({ action: 'ideas' }, 'shelf');
 }
 
-/** Asks for a story to be made from an idea. The server refuses, with the reason, once a limit is reached. */
-export async function queueIdea(id: string): Promise<void> {
-  if (MOCK) return;
-  await call({ action: 'queue', topic_id: id }, 'shelf');
+/** Asks for a story to be made from an idea. It starts at once if there is room, and otherwise takes its turn in the queue. */
+export async function queueIdea(id: string): Promise<{ starts: boolean; ahead: number; in_queue?: number }> {
+  if (MOCK) return { starts: true, ahead: 0 };
+  return await call({ action: 'queue', topic_id: id }, 'shelf');
 }
 
 export async function dismissIdea(id: string): Promise<void> {
