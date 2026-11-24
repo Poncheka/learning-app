@@ -40,18 +40,19 @@ const PROPOSER_BRIEF =
   "title is written later, from the facts, so do not try to write it here.\n\n" +
   "Learn from their taste. Work out what the lessons they loved have in common, in subject, period, scale " +
   "and mood, and offer more in that spirit. Work out what the ones they turned down or swiped away have " +
-  "in common, and steer clear of it. Their own reactions outweigh their listed interests when the two " +
-  "disagree. Never repeat a subject already offered, under any name.\n\n" +
+  "in common, and steer clear of it. Their reactions shape the kind of story you look for, never which interest " +
+  "it comes from. Never repeat a subject already offered, under any name.\n\n" +
   "Keep the set varied. The subjects in one reply must be of different kinds and grow out of different " +
   "interests: never two about animals, or two hoaxes, or two from the same century. Read their taste for " +
   "its spirit, not its surface. Someone who loved a story about an army losing to emus likes absurd true " +
   "episodes, not animals. Look at what was offered most recently, listed first, and do not offer more of " +
   "the same kind.\n\n" +
-  "About one subject in four should wander off their map, into something they did not ask for but would be " +
-  "glad to hear.\n\n" +
+  "You are told which interest each subject must come from, one subject per line, in order. Stay inside " +
+  "that interest, and find the subject there that best passes the test. A line marked \"Off the map\" asks " +
+  "for something they did not ask for but would be glad to hear.\n\n" +
   "Reply with only a JSON array of objects, each shaped {\"title\": string, \"tag\": string}. The title is the " +
   "subject as named above. The tag is the one interest from their list that the subject grew out of, " +
-  "copied exactly as they wrote it. For a subject that wanders off their map, the tag is \"Off the map\".";
+  "copied exactly as it was given to you, in the same order. For a subject that wanders off their map, the tag is \"Off the map\".";
 
 // The narrators offered in Settings. Each id is a voice the lesson function accepts.
 const NARRATORS = [
@@ -178,6 +179,20 @@ async function propose() {
   const liked = titles(["thumbs_up", "loved"]);
   const disliked = titles(["thumbs_down", "not_for_me", "not_interested"]);
 
+  // Every interest gets its turn. The interests with the fewest stories so far go first, so a
+  // narrow tag is not crowded out by the broad ones or by what happened to be loved lately.
+  // About one idea in six is a wildcard.
+  const { data: made } = await db.from("topics").select("tag").not("tag", "is", null).limit(1000);
+  const served = new Map<string, number>();
+  for (const t of (made ?? []) as any[]) served.set(String(t.tag).toLowerCase(), (served.get(String(t.tag).toLowerCase()) ?? 0) + 1);
+  const turns = labels
+    .map((label) => ({ label, count: served.get(label.toLowerCase()) ?? 0, tie: Math.random() }))
+    .sort((a, b) => a.count - b.count || a.tie - b.tie)
+    .map((t) => t.label);
+  const slots: string[] = turns.slice(0, READY_TARGET);
+  while (slots.length < READY_TARGET) slots.push("Off the map");
+  if (labels.length >= READY_TARGET && Math.random() < 0.5) slots[READY_TARGET - 1] = "Off the map";
+
   const res = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: { Authorization: `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
@@ -189,7 +204,7 @@ async function propose() {
         `Loved: ${liked.join("; ") || "nothing rated yet"}\n` +
         `Turned down or swiped away: ${disliked.join("; ") || "nothing yet"}\n` +
         `Already offered: ${(seen ?? []).map((t) => (t.title && t.title !== t.asked ? `${t.asked} (${t.title})` : t.asked)).join("; ") || "nothing yet"}\n` +
-        `Propose ${READY_TARGET} topics.`,
+        `Propose ${READY_TARGET} topics, one for each of these, in this order:\n${slots.map((s, i) => `${i + 1}. ${s}`).join("\n")}`,
     }),
   });
   if (!res.ok) return json({ error: "Topics could not be proposed.", detail: (await res.text()).slice(0, 300) }, 502);
@@ -203,10 +218,11 @@ async function propose() {
   try {
     const parsed = JSON.parse(text.slice(text.indexOf("["), text.lastIndexOf("]") + 1));
     proposed = (Array.isArray(parsed) ? parsed : [])
-      .map((t: any) => ({
+      .map((t: any, i: number) => ({
         title: String(typeof t === "string" ? t : t?.title ?? "").trim(),
-        // Only a tag the listener really has is kept. Anything else counts as a wildcard.
-        tag: labels.find((l) => l.toLowerCase() === String(t?.tag ?? "").trim().toLowerCase()) ?? "Off the map",
+        // The tag is the turn it was asked for. If the model named another of the listener's
+        // tags, that is believed. Anything else counts as a wildcard.
+        tag: labels.find((l) => l.toLowerCase() === String(t?.tag ?? "").trim().toLowerCase()) ?? (slots[i] && slots[i] !== "Off the map" ? slots[i] : "Off the map"),
       }))
       .filter((t) => t.title.length > 0 && !offered.has(plain(t.title)))
       .slice(0, READY_TARGET);

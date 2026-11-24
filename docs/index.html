@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pliny. Whatever you're into, there's a story.</title>
+<meta name="description" content="Pliny turns your curiosity into personalized audio stories, made to fit the time you have. Join the waitlist.">
+<meta property="og:title" content="Pliny. Whatever you're into, there's a story.">
+<meta property="og:description" content="Ancient inventions. Bizarre history. Unexpected science. Personalized audio stories, made to fit the time you have.">
+<meta name="theme-color" content="#F7F7F4">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#17191B;--paper:#F7F7F4;--red:#FF5438;--yellow:#EFFF00;--blue:#2447FF;--violet:#8D82FF;--gray:#66696B;--pad:80px}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font-family:'Inter',system-ui,sans-serif;background:var(--paper);color:var(--ink);-webkit-font-smoothing:antialiased}
+a{color:var(--ink);text-decoration:none}
+button{font-family:inherit;cursor:pointer}
+input{font-family:inherit}
+input::placeholder{color:var(--gray)}
+input:focus-visible,button:focus-visible,a:focus-visible{outline:3px solid var(--blue);outline-offset:3px}
+.grotesk{font-family:'Space Grotesk',sans-serif;font-weight:700}
+.serif{font-family:'Instrument Serif',serif;font-weight:400}
+.wrap{max-width:1440px;margin:0 auto;overflow:hidden}
+.hp{position:absolute;left:-9999px;width:1px;height:1px;opacity:0}
+
+/* Top bar */
+.nav{height:88px;padding:0 var(--pad);display:flex;align-items:center;justify-content:space-between}
+.logo{font-size:34px;letter-spacing:-1.2px}
+.nav-links{display:flex;align-items:center;gap:36px;font-size:16px;font-weight:500}
+.pill{height:48px;padding:0 20px;border-radius:24px;border:1.5px solid var(--ink);display:flex;align-items:center;font-size:15px;font-weight:600;background:#fff}
+
+/* Hero */
+.hero{padding:28px var(--pad) 72px;position:relative;display:flex;gap:40px}
+.hero-ring{position:absolute;left:-120px;bottom:-230px;width:300px;height:300px;border-radius:50%;border:2px solid var(--ink)}
+.hero-star{position:absolute;left:560px;bottom:14px;width:90px;height:90px}
+.hero-copy{flex:1;min-width:0;padding-top:60px;position:relative}
+h1{margin:0;font-weight:400}
+.h1a{font-size:84px;line-height:.94;letter-spacing:-4px;display:block}
+.h1b{font-style:italic;font-size:104px;line-height:1.05;letter-spacing:-1px;display:inline-block;background:linear-gradient(transparent 62%,var(--yellow) 62%,var(--yellow) 92%,transparent 92%)}
+.h1dot{font-size:104px;color:var(--red);letter-spacing:-4px}
+.lede{margin:26px 0 32px;font-size:22px;line-height:1.45;max-width:560px}
+.fine{margin:14px 6px 0;font-size:14px;color:var(--gray);line-height:1.45}
+
+/* Waitlist form */
+.form-row{display:flex;gap:12px}
+.form-row input[type=email]{height:64px;border-radius:32px;border:1.5px solid var(--ink);background:#fff;padding:0 26px;font-size:18px;color:var(--ink);flex:1;min-width:0}
+.btn{height:64px;border-radius:32px;background:var(--ink);border:0;color:var(--paper);padding:0 30px;font-size:18px;font-weight:600;display:flex;align-items:center;justify-content:center;flex:none}
+.btn[disabled]{opacity:.6;cursor:default}
+.form-error{margin:10px 6px 0;font-size:14px;color:#C42B0E;font-weight:500}
+.done{background:var(--yellow);border:1.5px solid var(--ink);padding:20px 22px;display:flex;align-items:center;gap:16px;border-radius:0 28px 0 0}
+.done-tick{width:44px;height:44px;border-radius:22px;background:var(--ink);color:var(--paper);display:flex;align-items:center;justify-content:center;flex:none}
+.done-title{font-size:22px;letter-spacing:-.5px;text-transform:uppercase}
+.done-sub{font-size:15px;margin-top:4px;line-height:1.35;overflow-wrap:anywhere}
+.done-change{background:transparent;border:0;font-size:14px;font-weight:600;text-decoration:underline;color:var(--ink);flex:none;height:44px}
+[hidden]{display:none!important}
+
+/* Try it out */
+.player-col{flex:none;padding-top:8px;position:relative}
+.player{width:540px;background:var(--paper);border:2px solid var(--ink);box-shadow:10px 10px 0 var(--ink)}
+.art{position:relative;height:270px;overflow:hidden}
+.art i{position:absolute;display:block}
+.art .a{right:-30px;top:-60px;width:260px;height:260px;border-radius:50%}
+.art .ring{right:-60px;top:-90px;width:320px;height:320px;border-radius:50%;border:2px solid var(--paper);animation:spin 12s linear infinite}
+.art .b{left:0;top:110px;width:150px;height:26px}
+.art .c{left:70px;bottom:-90px;width:210px;height:210px;border-radius:50%;border:30px solid;animation:spinr 16s linear infinite}
+.player:not(.playing) .art .ring,.player:not(.playing) .art .c{animation-play-state:paused}
+.player-body{padding:28px;display:flex;flex-direction:column;gap:22px}
+.eyebrow{font-size:12px;font-weight:600;letter-spacing:2.5px;text-transform:uppercase;color:var(--gray)}
+.story-title{font-size:34px;line-height:.98;letter-spacing:-1.2px;text-transform:uppercase;min-height:100px;margin-top:8px}
+.pop{animation:pop 450ms ease}
+.controls{display:flex;align-items:center;gap:18px}
+.play{width:104px;height:104px;border-radius:50%;background:var(--ink);border:0;color:var(--yellow);display:flex;align-items:center;justify-content:center;flex:none;box-shadow:5px 5px 0 var(--red)}
+.status{font-size:17px;font-weight:600;line-height:1.25}
+.bar{height:6px;border-radius:3px;background:#D9D9D3;margin-top:10px}
+.bar i{display:block;height:6px;border-radius:3px;background:var(--ink);width:0}
+.another{height:60px;border-radius:30px;border:1.5px solid var(--ink);color:var(--ink);background:#fff;font-size:17px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:10px;width:100%}
+.player.ended .another{background:var(--yellow)}
+
+/* How it works */
+.how{padding:80px var(--pad)}
+h2{margin:0;font-weight:400}
+.how h2{font-size:64px;line-height:1;letter-spacing:-1px;margin-bottom:48px}
+.steps{display:flex;gap:40px}
+.step{flex:1;min-width:0}
+.step-art{height:220px;position:relative;overflow:hidden}
+.step-num{margin:18px 0 6px;font-size:13px;font-weight:600;letter-spacing:2.5px;color:var(--gray)}
+.step-title{font-size:28px;line-height:1;letter-spacing:-1px;text-transform:uppercase}
+.step p{margin:10px 0 0;font-size:17px;line-height:1.5;color:#3A3D40}
+.tags{border:1.5px solid var(--ink);display:flex;flex-wrap:wrap;gap:8px;align-content:center;padding:0 20px}
+.tag{height:40px;padding:0 16px;border-radius:20px;display:flex;align-items:center;font-size:15px;font-weight:600;background:#fff;border:1.5px solid var(--ink)}
+.tag.on{background:var(--ink);color:var(--paper)}
+.lengths{background:var(--yellow);display:flex;align-items:center;justify-content:space-around;padding:0 12px}
+.lengths b{font-family:'Space Grotesk',sans-serif;font-size:64px;letter-spacing:-3px}
+.lengths span{font-family:'Space Grotesk',sans-serif;font-weight:500;font-size:16px;margin-left:4px}
+.press{background:var(--red);display:flex;align-items:center;justify-content:center}
+.press .ring{position:absolute;right:-40px;bottom:-60px;width:200px;height:200px;border-radius:50%;border:30px solid var(--blue)}
+.press .dot{position:relative;width:92px;height:92px;border-radius:50%;background:var(--ink);color:var(--paper);display:flex;align-items:center;justify-content:center}
+
+/* Topics */
+.topics{padding:80px var(--pad);background:var(--ink);color:var(--paper)}
+.topics h2{font-size:56px;line-height:1.02;letter-spacing:-.5px;max-width:760px;margin-bottom:40px}
+.tiles{display:flex;gap:20px}
+.tile{position:relative;overflow:hidden;height:200px;display:flex;align-items:flex-end;padding:18px 20px;flex:1;min-width:0;color:var(--ink)}
+.tile span{position:relative;font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:25px;line-height:.98;letter-spacing:-1px;text-transform:uppercase}
+.tile i{position:absolute;display:block;border-radius:50%}
+
+/* Closing call */
+.cta{padding:48px var(--pad) 56px;background:var(--red);position:relative;overflow:hidden}
+.cta-dot{position:absolute;right:60px;top:-90px;width:360px;height:360px;border-radius:50%;background:var(--ink)}
+.cta h2{position:relative;margin-bottom:10px}
+.cta .l1{font-size:72px;line-height:.95;letter-spacing:-3.5px;text-transform:uppercase;display:block}
+.cta .l2{font-style:italic;font-size:84px;line-height:1;letter-spacing:-1px;display:block}
+.cta p.sub{margin:0 0 22px;position:relative;font-size:20px;line-height:1.4}
+.cta .form{position:relative;max-width:760px}
+.cta .fine{color:var(--ink)}
+
+footer{padding:44px var(--pad);display:flex;justify-content:space-between;align-items:center;gap:16px}
+footer .logo{font-size:28px}
+footer p{margin:0;font-size:13px;color:var(--gray);max-width:520px;line-height:1.5}
+footer nav{display:flex;gap:20px;font-size:14px;font-weight:500}
+
+@keyframes pop{from{opacity:0;transform:translateY(12px) rotate(-1.5deg)}to{opacity:1;transform:none}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes spinr{to{transform:rotate(-360deg)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important}html{scroll-behavior:auto}}
+
+/* Tablet: the player drops under the headline */
+@media (max-width:1180px){
+  :root{--pad:48px}
+  .hero{flex-direction:column;gap:48px}
+  .hero-copy{padding-top:24px}
+  .hero-star{display:none}
+  .player{width:100%;max-width:540px}
+  .cta-dot{right:-120px}
+}
+/* Phone */
+@media (max-width:760px){
+  :root{--pad:20px}
+  .nav{height:72px}
+  .logo{font-size:30px}
+  .nav-links a:not(.pill){display:none}
+  .hero{padding-top:8px;padding-bottom:56px}
+  .hero-ring{display:none}
+  .h1a{font-size:48px;letter-spacing:-2.2px}
+  .h1b{font-size:60px}
+  .h1dot{font-size:60px;letter-spacing:-2px}
+  .lede{font-size:18px;margin:20px 0 24px}
+  .form-row{flex-direction:column}
+  .form-row input[type=email],.btn{height:60px;width:100%;flex:none}
+  .done{flex-wrap:wrap}
+  .player{box-shadow:6px 6px 0 var(--ink)}
+  .art{height:200px}
+  .player-body{padding:20px;gap:18px}
+  .story-title{font-size:28px;min-height:84px}
+  .play{width:84px;height:84px}
+  .how{padding-top:56px;padding-bottom:56px}
+  .how h2{font-size:48px;margin-bottom:32px}
+  .steps{flex-direction:column;gap:36px}
+  .step-art{height:180px}
+  .topics{padding-top:56px;padding-bottom:56px}
+  .topics h2{font-size:40px;margin-bottom:28px}
+  .tiles{flex-wrap:wrap;gap:12px}
+  .tile{flex:1 1 calc(50% - 6px);height:170px}
+  .tile span{font-size:20px}
+  .cta .l1{font-size:44px;letter-spacing:-2px}
+  .cta .l2{font-size:52px}
+  .cta-dot{width:220px;height:220px;right:-90px;top:-80px}
+  .cta p.sub{font-size:18px}
+  footer{flex-direction:column;align-items:flex-start;gap:20px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="nav">
+  <a href="#" class="logo grotesk" aria-label="Pliny, home">pliny.</a>
+  <nav class="nav-links" aria-label="Sections">
+    <a href="#how">How it works</a>
+    <a href="#topics">Topics</a>
+    <a href="#join" class="pill">Join waitlist</a>
+  </nav>
+</header>
+
+<main>
+<section class="hero">
+  <div class="hero-ring" aria-hidden="true"></div>
+  <div class="hero-star" aria-hidden="true"><svg width="90" height="90" viewBox="0 0 24 24" fill="#17191B"><path d="M12 1l1.6 8.4L22 12l-8.4 2.6L12 23l-1.6-8.4L2 12l8.4-2.6z"/></svg></div>
+
+  <div class="hero-copy">
+    <h1><span class="h1a grotesk">Whatever<br>you&rsquo;re into,</span><span class="h1b serif">there&rsquo;s a story</span><span class="h1dot grotesk">.</span></h1>
+    <p class="lede">Ancient inventions. Bizarre history. Unexpected science. Pliny turns your curiosity into personalized audio stories, made to fit the time you have.</p>
+    <div id="join" class="form" data-source="hero"></div>
+    <p class="fine">Early access. We email you once when your invite is ready.</p>
+  </div>
+
+  <div class="player-col">
+    <div class="player" id="player">
+      <div class="art" id="art" aria-hidden="true"><i class="a"></i><i class="ring"></i><i class="b"></i><i class="c"></i></div>
+      <div class="player-body">
+        <div>
+          <div class="eyebrow">A real Pliny story. AI narrated</div>
+          <div class="story-title grotesk" id="title">&nbsp;</div>
+        </div>
+        <div class="controls">
+          <button type="button" class="play" id="play" aria-label="Play the sample">
+            <svg id="ic-play" width="38" height="38" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.5.9l12-7.5a1 1 0 0 0 0-1.8l-12-7.5A1 1 0 0 0 7 4.5z"/></svg>
+            <svg id="ic-pause" hidden width="38" height="38" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
+            <svg id="ic-replay" hidden width="38" height="38" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.6-5.9"/><path d="M4 4v4.500h4.500"/></svg>
+          </button>
+          <div style="flex:1;min-width:0">
+            <div class="status" id="status" aria-live="polite">Press play. It takes a minute.</div>
+            <div class="bar" id="bar" role="progressbar" aria-label="Sample progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><i id="fill"></i></div>
+          </div>
+        </div>
+        <button type="button" class="another" id="another">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7h3.500c5 0 6 10 11 10H21M3 17h3.500c1.600 0 2.800-1 3.800-2.400M21 7h-3.500c-1.600 0-2.800 1-3.800 2.400"/><path d="M18 4l3 3-3 3M18 14l3 3-3 3"/></svg>
+          Another story
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="how" id="how">
+  <h2 class="serif">How it <em>works.</em></h2>
+  <div class="steps">
+    <div class="step">
+      <div class="step-art tags" aria-hidden="true"><span class="tag on">Nepal</span><span class="tag">Canals</span><span class="tag on">Printing</span><span class="tag">Ancient Rome</span><span class="tag on">Space</span></div>
+      <div class="step-num">01</div>
+      <div class="step-title grotesk">Tell us what you are into</div>
+      <p>A few tags is plenty. Pliny expands them and learns from your thumbs.</p>
+    </div>
+    <div class="step">
+      <div class="step-art lengths" aria-hidden="true"><div><b>15</b><span>min</span></div><div><b>30</b><span>min</span></div><div><b>1</b><span>hour</span></div></div>
+      <div class="step-num">02</div>
+      <div class="step-title grotesk">Pick how long you have</div>
+      <p>Fifteen minutes, half an hour, an hour. Every lesson is built to fit.</p>
+    </div>
+    <div class="step">
+      <div class="step-art press" aria-hidden="true"><div class="ring"></div><div class="dot"><svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15a1 1 0 0 0 1.5.9l12-7.5a1 1 0 0 0 0-1.8l-12-7.5A1 1 0 0 0 7 4.5z"/></svg></div></div>
+      <div class="step-num">03</div>
+      <div class="step-title grotesk">Press play</div>
+      <p>Lessons are written fresh, narrated, and saved to your library to replay.</p>
+    </div>
+  </div>
+</section>
+
+<section class="topics" id="topics">
+  <h2 class="serif">Something you did not know <em>you wanted to know.</em></h2>
+  <div class="tiles">
+    <div class="tile" style="background:#FF5438"><i style="right:-40px;top:-50px;width:170px;height:170px;background:#17191B" aria-hidden="true"></i><span>Kathmandu,<br>1800 to 1900.</span></div>
+    <div class="tile" style="background:#EFFF00"><i style="right:-30px;top:-20px;width:150px;height:150px;border:3px solid #2447FF" aria-hidden="true"></i><i style="right:10px;top:20px;width:80px;height:80px;border:3px solid #2447FF" aria-hidden="true"></i><span>How the Erie<br>Canal got built.</span></div>
+    <div class="tile" style="background:#2447FF;color:#fff"><i style="right:-20px;top:-10px;width:130px;height:130px;border-radius:65px 65px 0 65px;background:#8D82FF" aria-hidden="true"></i><span>The printing<br>press, invented.</span></div>
+    <div class="tile" style="background:#8D82FF"><i style="right:-50px;top:-40px;width:190px;height:190px;background:#17191B" aria-hidden="true"></i><span>The Silk Road<br>at its peak.</span></div>
+  </div>
+</section>
+
+<section class="cta">
+  <div class="cta-dot" aria-hidden="true"></div>
+  <h2><span class="l1 grotesk">A little time.</span><span class="l2 serif">A lot to discover.</span></h2>
+  <p class="sub">Join the waitlist and be among the first to listen.</p>
+  <div class="form" data-source="footer"></div>
+  <p class="fine">Early access. One email when your invite is ready.</p>
+</section>
+</main>
+
+<footer>
+  <span class="logo grotesk">pliny.</span>
+  <p>Pliny lessons are narrated by AI voices and written with AI. Facts are checked against public sources.</p>
+  <nav aria-label="Footer"><a href="mailto:hello@itspliny.com">Contact</a></nav>
+</footer>
+
+</div>
+
+<template id="form-tpl">
+  <form novalidate>
+    <div class="form-row">
+      <input type="email" name="email" placeholder="you@email.com" aria-label="Email address" autocomplete="email" inputmode="email">
+      <input class="hp" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+      <button type="submit" class="btn">Join waitlist</button>
+    </div>
+    <p class="form-error" role="alert" hidden></p>
+  </form>
+  <div class="done" hidden>
+    <span class="done-tick"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12l5 5 9-10"/></svg></span>
+    <div style="flex:1;min-width:0">
+      <div class="done-title grotesk">You are on the list.</div>
+      <div class="done-sub">We will email <span class="done-email"></span> when your invite is ready.</div>
+    </div>
+    <button type="button" class="done-change">Change</button>
+  </div>
+</template>
+
+<script>
+(function () {
+  var API = 'https://ctssexvgotcdbuvlkrou.supabase.co/functions/v1/site';
+  var $ = function (id) { return document.getElementById(id); };
+
+  // ---------- The waitlist: two forms that share one answer ----------
+  var forms = [].slice.call(document.querySelectorAll('.form'));
+  forms.forEach(function (box) { box.appendChild($('form-tpl').content.cloneNode(true)); });
+
+  function showDone(email) {
+    forms.forEach(function (box) {
+      box.querySelector('form').hidden = true;
+      box.querySelector('.done-email').textContent = email;
+      box.querySelector('.done').hidden = false;
+    });
+  }
+  function showForm() {
+    forms.forEach(function (box) {
+      box.querySelector('.done').hidden = true;
+      box.querySelector('form').hidden = false;
+    });
+  }
+  forms.forEach(function (box) {
+    var form = box.querySelector('form');
+    var input = form.elements.email;
+    var button = form.querySelector('button');
+    var error = form.querySelector('.form-error');
+    var fail = function (text) { error.textContent = text; error.hidden = false; };
+    input.addEventListener('input', function () { error.hidden = true; });
+    box.querySelector('.done-change').addEventListener('click', function () { showForm(); input.focus(); });
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var email = input.value.trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return fail('Enter a valid email address.');
+      button.disabled = true;
+      button.textContent = 'Joining';
+      fetch(API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email, source: box.dataset.source, website: form.elements.website.value })
+      })
+        .then(function (res) { return res.json().then(function (data) { return { ok: res.ok, data: data }; }); })
+        .then(function (r) {
+          if (!r.ok) return fail(r.data.error || 'That did not save. Please try again.');
+          forms.forEach(function (b) { b.querySelector('form').elements.email.value = email; });
+          showDone(email);
+        })
+        .catch(function () { fail('That did not save. Check your connection and try again.'); })
+        .then(function () { button.disabled = false; button.textContent = 'Join waitlist'; });
+    });
+  });
+
+  // ---------- Try it out: a real saved opening, picked at random ----------
+  var ARTS = [
+    { bg: '#FF5438', a: '#17191B', b: '#EFFF00', c: '#2447FF' },
+    { bg: '#EFFF00', a: '#2447FF', b: '#FF5438', c: '#17191B' },
+    { bg: '#2447FF', a: '#8D82FF', b: '#EFFF00', c: '#FF5438' },
+    { bg: '#8D82FF', a: '#17191B', b: '#FF5438', c: '#EFFF00' }
+  ];
+  var player = $('player'), art = $('art'), title = $('title'), status = $('status'), fill = $('fill'), bar = $('bar');
+  var audio = new Audio();
+  audio.preload = 'none';
+  var story = null;      // { id, title, url }
+  var loading = null;    // the request for a story, while one is out
+  var artAt = Math.floor(Math.random() * ARTS.length);
+  var wantsPlay = false, ended = false, retried = false;
+
+  function paint() {
+    var playing = !audio.paused && !audio.ended;
+    player.classList.toggle('playing', playing);
+    player.classList.toggle('ended', ended);
+    $('ic-play').hidden = playing || ended;
+    $('ic-pause').hidden = !playing;
+    $('ic-replay').hidden = !ended || playing;
+    $('play').setAttribute('aria-label', playing ? 'Pause' : ended ? 'Play again' : 'Play the sample');
+    var length = isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 60;
+    var done = Math.min(1, audio.currentTime / length);
+    var left = Math.max(0, Math.ceil(length - audio.currentTime));
+    fill.style.width = (ended ? 100 : done * 100) + '%';
+    bar.setAttribute('aria-valuenow', String(Math.round((ended ? 1 : done) * 100)));
+    if (!story) status.textContent = 'Finding a story.';
+    else if (wantsPlay && !playing) status.textContent = 'Starting.';
+    else if (playing) status.textContent = 'Playing. ' + left + ' seconds left';
+    else if (ended) status.textContent = 'That was the opening. Again, or another?';
+    else if (audio.currentTime > 0) status.textContent = 'Paused. ' + left + ' seconds left';
+    else status.textContent = 'Press play. It takes a minute.';
+  }
+
+  function show(next) {
+    story = next;
+    artAt = (artAt + 1) % ARTS.length;
+    var look = ARTS[artAt];
+    art.style.background = look.bg;
+    art.querySelector('.a').style.background = look.a;
+    art.querySelector('.b').style.background = look.b;
+    art.querySelector('.c').style.borderColor = look.c;
+    // The title on screen is always the one that belongs to the audio about to play.
+    title.textContent = next.title + '.';
+    [art, title].forEach(function (el) { el.classList.remove('pop'); void el.offsetWidth; el.classList.add('pop'); });
+    audio.src = next.url;
+    ended = false;
+    retried = false;
+  }
+
+  function fetchStory(not) {
+    loading = fetch(API + (not ? '?not=' + encodeURIComponent(not) : ''))
+      .then(function (res) { if (!res.ok) throw new Error('none'); return res.json(); })
+      .then(function (next) { loading = null; return next; })
+      .catch(function (err) { loading = null; throw err; });
+    return loading;
+  }
+
+  function start() {
+    wantsPlay = true;
+    paint();
+    audio.play().catch(function () { wantsPlay = false; paint(); });
+  }
+
+  function another(thenPlay) {
+    audio.pause();
+    wantsPlay = false;
+    var not = story ? story.id : null;
+    return fetchStory(not)
+      .then(function (next) { show(next); if (thenPlay) start(); else paint(); })
+      .catch(function () { status.textContent = 'The sample could not be loaded. Try again in a moment.'; });
+  }
+
+  $('play').addEventListener('click', function () {
+    if (!story) { if (!loading) another(true); return; }
+    if (!audio.paused && !audio.ended) { wantsPlay = false; audio.pause(); return; }
+    if (ended) { audio.currentTime = 0; ended = false; }
+    start();
+  });
+  $('another').addEventListener('click', function () {
+    var wasPlaying = !audio.paused && !audio.ended;
+    another(wasPlaying);
+  });
+
+  ['play', 'playing', 'pause', 'timeupdate', 'loadedmetadata', 'waiting'].forEach(function (name) {
+    audio.addEventListener(name, function () { if (name === 'playing') wantsPlay = false; paint(); });
+  });
+  audio.addEventListener('ended', function () { ended = true; wantsPlay = false; paint(); });
+  // The audio link lasts an hour. If it has gone stale, fetch the same kind of thing afresh, once.
+  audio.addEventListener('error', function () {
+    if (!story || retried) { wantsPlay = false; status.textContent = 'That one would not play. Try another story.'; return; }
+    var again = wantsPlay;
+    retried = true;
+    fetchStory(null).then(function (next) { show(next); retried = true; if (again) start(); else paint(); }).catch(function () {});
+  });
+
+  paint();
+  another(false);
+})();
+</script>
+</body>
+</html>

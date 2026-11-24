@@ -1,7 +1,7 @@
 // 2. Listen. A few topics, shown large. Tap one, or let Pliny pick.
 import { router } from 'expo-router';
 import { useEffect } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { CardArt, pickBackgrounds } from '@/components/covers';
 import { NowPlayingBar } from '@/components/NowPlayingBar';
@@ -28,6 +28,11 @@ export default function Listen() {
   // Load what is waiting, then quietly ask for more if there are fewer than three.
   useEffect(() => {
     load().then(topUp);
+    // Coming back to the app picks the preparing up again: a phone that was asleep drops what it was waiting for.
+    const back = AppState.addEventListener('change', (state) => {
+      if (state === 'active') load().then(topUp);
+    });
+    return () => back.remove();
   }, [load, topUp]);
 
   const choose = (topic: Topic) => {

@@ -1,0 +1,1 @@
+-- Applied through the Supabase connector on 23 Nov 2026: tables waitlist and site_samples for the marketing site, row level security on, no policies. Only the "site" function reads or writes them.

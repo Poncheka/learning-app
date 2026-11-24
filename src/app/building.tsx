@@ -1,8 +1,8 @@
 // 4. Building. The few seconds between choosing a lesson and hearing it.
 //
 // The reading and the writing of the opening were done ahead of time, so the only real
-// wait is the voice. The earlier steps are ticked off one at a time anyway, at uneven gaps,
-// so the wait reads as progress. This screen moves on by itself the moment sound begins.
+// wait is the voice. The earlier steps are ticked off one at a time anyway, a few seconds
+// each, so the wait reads as steady progress. This screen moves on by itself the moment sound begins.
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
@@ -42,15 +42,16 @@ export default function Building() {
   useEffect(() => {
     if (phase !== 'starting') return;
     setStep(0);
-    // Uneven on purpose: real work never takes the same time twice. Some steps snap by
-    // and some drag, anywhere from about half a second to two and a half.
+    // Each step takes its time, and a different time each go: about two to four and a half
+    // seconds apiece, so the list is worked through steadily instead of snapping to the end.
+    // The last step is the real wait, and it stays lit until sound begins.
     let timer: ReturnType<typeof setTimeout>;
     const advance = (next: number) => {
       if (next >= STEPS.length) return;
       timer = setTimeout(() => {
         setStep(next);
         advance(next + 1);
-      }, 500 + Math.random() * Math.random() * 2600);
+      }, 2000 + Math.random() * 2500);
     };
     advance(1);
     return () => clearTimeout(timer);

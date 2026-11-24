@@ -13,3 +13,12 @@ verify_jwt = false
 
 [functions.open-app]
 verify_jwt = false
+
+[functions.prepare]
+verify_jwt = false
+
+[functions.chapter]
+verify_jwt = false
+
+[functions.site]
+verify_jwt = false

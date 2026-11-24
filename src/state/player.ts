@@ -15,6 +15,7 @@ import { Asset } from 'expo-asset';
 import { createAudioPlaylist, setAudioModeAsync, setIsAudioActiveAsync, type AudioPlaylist, type AudioPlaylistStatus } from 'expo-audio';
 import { create } from 'zustand';
 
+import { useTopics } from '@/state/topics';
 import { MOCK, chapterAudioUrl, getLesson, prewarmChapter, startLesson, type Lesson, type LessonSummary, type Topic } from '@/lib/api';
 
 const STING = require('../../assets/audio/sting.mp3') as number;
@@ -301,7 +302,17 @@ export const usePlayer = create<PlayerState>((set, get) => {
     ...idle,
     rate: 1,
 
-    begin: (topic, minutes) => launch(topic, minutes, () => startLesson(topic.id, minutes)),
+    begin: (topic, minutes) => {
+      const started = launch(topic, minutes, () => startLesson(topic.id, minutes));
+      // While this story plays, the next ones are lined up, so the Listen page is not empty
+      // when it ends. It waits a little first, so this story's own chapters get a head start.
+      setTimeout(() => {
+        const shelf = useTopics.getState();
+        useTopics.setState({ topics: shelf.topics.filter((t) => t.id !== topic.id) });
+        shelf.topUp();
+      }, 15000);
+      return started;
+    },
 
     resume: (summary) => {
       // Already loaded: carry on with it. Starting it again would stack a second copy on top.
@@ -324,7 +335,10 @@ export const usePlayer = create<PlayerState>((set, get) => {
       // Headphones coming out, or a call, can leave the phone's audio switched off. Switch
       // it back on first, so play works and the sound goes to whatever is connected now.
       const current = playlist;
-      setIsAudioActiveAsync(true)
+      // Dictation or another app can also take the sound over and change how it is set up, so that is set again too.
+      setAudioModeAsync({ playsInSilentMode: true, shouldPlayInBackground: true, interruptionMode: 'doNotMix' })
+        .catch(() => {})
+        .then(() => setIsAudioActiveAsync(true))
         .catch(() => {})
         .then(() => current === playlist && current.play());
     },

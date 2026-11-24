@@ -71,7 +71,10 @@ const SOURCE_CHARS = 14000;
 // fallback for a script that runs long.
 const CHUNK_CHARS = 6500;
 // Work claimed longer ago than this is assumed to have died and can be picked up again.
-const STALE_MS = 4 * 60 * 1000;
+// No request outlives 150 seconds, so a step still marked as under way after this was cut off.
+const STALE_MS = 160 * 1000;
+// A chapter being made says so every ten seconds. Silence for this long means its maker was cut off.
+const CLAIM_MS = 35 * 1000;
 const LINK_SECONDS = 6 * 60 * 60;
 
 // The narrator's direction: who they are, their pace and their tone. The voice model has no
@@ -194,15 +197,40 @@ const plannerBrief = (story: string, engine = 1) =>
           "For the two to four most extraordinary moments, the ones the story will be built around, keep everything " +
             "the extracts document about them, spread over several notes: what led up to it, what stood in the way, " +
             "who decided what, what was tried, what the evidence was, what happened next, and any telling detail. " +
-            "Those moments are told in full later, and they can only be told from what is in the notes. Aim for " +
+            "Those moments are told in full later, and they can only be told from what is in the notes. For the one " +
+            "or two people the story turns on, note what the extracts document about who they were: their role, what " +
+            "set them apart, what they wanted or were up against, and what they looked like if a source says. Aim for " +
             "about sixty notes, fewer if the extracts are thin.",
+        )
+        .replace(
+          "Then name the core fascination,",
+          "MODE AND PROMISE. Decide which of two kinds of story this is. \"focused\": one particular event, person, " +
+            "mystery or invention, told in depth. Every chapter develops that one subject, and wider history comes in " +
+            "only where it explains it. \"broad\": a deliberately wide look at a subject through several incidents, " +
+            "held together by one question and a progression in which each example brings a new development, never " +
+            "just another item. Choose by what the notes can carry. Then write the promise: what someone who reads " +
+            "the title and hook expects to hear. For a focused story, the person, event or discovery that stays at " +
+            "the centre. For a broad one, the question and the progression. The title, hook, opening, every chapter " +
+            "and the payoff all keep that one promise. Never widen a focused story to fill time: if its material " +
+            "carries five minutes, plan five, and put the wider subject in \"wider\" as a separate idea with its own " +
+            "title and hook (otherwise null). A broad story is titled as one, like 'Why people once put animals on " +
+            "trial' or 'The strange history of vending machines', never after one incident inside it. List the cast: " +
+            "the protagonist or two the story follows and the supporting figures who matter, each with the few " +
+            "documented words that identify them. Everyone else is minor and usually goes unnamed. " +
+            "Then name the core fascination,",
+        )
+        .replace(
+          '"left_out": ["..."]}, "facts"',
+          '"left_out": ["..."], "mode": "focused", "promise": "...", "cast": [{"name": "...", "role": "protagonist", ' +
+            '"tag": "who they are, in a few words"}], "wider": {"title": "...", "hook": "..."}}, "facts"',
         )
         .replace(
           "A chapter that only adds information gets merged or cut. Build chapters around developments, never around sub-topics.\n",
           "Each chapter is driven by a problem or question the story has just raised. It shows what was tried or " +
             "found, and ends on the complication that drives the next chapter. A run of examples in date order is a " +
             "catalog, not a chapter: group them by the problem they were answers to. Do not force this on a story " +
-            "whose natural shape is different. A chapter that only adds information gets merged or cut.\n",
+            "whose natural shape is different. A chapter that only adds information, or that shares the broad subject " +
+            "without advancing the promise, is cut, even if the story gets shorter.\n",
         )
         .replace(
           "The last chapter is the payoff. It answers the central question, says what it changed or means where the notes support that, and lands the final insight. It is always played, however short the lesson.\n",
@@ -248,6 +276,15 @@ const plannerBrief = (story: string, engine = 1) =>
         );
 
 const REVIEWER_V2 =
+  "First check the promise. The story discovery states a mode and a promise, and you are given the title and " +
+  "hook. Does every chapter advance that promise or deepen it? Cut any chapter that merely shares the broad " +
+  "subject and let the story be shorter, down to an opening and two chapters: never fill the gap with " +
+  "neighbouring material. A focused story goes deep on its one subject. In a broad one every example must " +
+  "bring a new development. If the title or hook promises something the chapters do not deliver, also return " +
+  "a corrected \"title\" (nine words at most: 'The X that Y' for a focused story, 'Why ...' or 'The strange " +
+  "history of ...' for a broad one) and \"hook\" beside the chapters; otherwise leave them out. Does the chapter " +
+  "where a protagonist first appears hold the notes that make them memorable, and are there more names than a " +
+  "listener can hold?\n\n" +
   "This plan also gives every chapter its beats, each weighted signature, supporting or connective, and a kind " +
   "of ending. Check them, and check the shape. Does each chapter turn on a problem the one before it raised, " +
   "or is the middle a catalog in date order? If so, regroup it by problem. Does the last chapter end on the " +
@@ -346,12 +383,21 @@ const writerBriefV2 = (story: string) =>
         "the range, stop short: a shorter chapter that is all story beats a longer one with padding.\n\n" +
         "Continuity. This is one continuous telling, not a set of essays. You are given the previous chapter's " +
         "closing lines: begin as their next thought. No recap, no announcing what comes next, and no jump to an " +
-        "unrelated person or date without a phrase that links it. Say in a few words who or what any new name is " +
-        "the first time it appears.\n\n" +
+        "unrelated person or date without a phrase that links it. Stay on the story's promise: nothing goes in only " +
+        "because it shares the subject.\n\n" +
+        "People. A cast may be listed, and the covered summary says who the listener has met. The first time a " +
+        "protagonist appears, make them stick, from the notes only: who they are, what set them apart, what they " +
+        "wanted or were up against, and what they looked like if a note says. With no description, use a " +
+        "documented detail of what they did. A supporting figure gets one identifying phrase and their tie to the " +
+        "story. Leave minor figures unnamed where you can: too many names lose a listener. Do not reintroduce " +
+        "someone already met, but when they return after a chapter away, give a few natural words of reminder, not " +
+        "the full name and title again. Keep it in proportion: an introduction is a clause or a sentence or two, " +
+        "never a biography, and the opening stays fast.\n\n" +
         "Endings. You are told where the chapter should arrive. Write toward it and land it in your own closing " +
         "sentences: never paste the note in as a line. Do not end on a question unless told to, and never tease " +
         "what is coming.",
-    );
+    )
+    .replace("saying what this chapter covered, for", "saying what this chapter covered and which people the listener has now met, for");
 
 const CHECKER_V2 =
   "You are the fact checker and editor for a chapter of narration that is about to be recorded. You are given " +
@@ -367,10 +413,10 @@ const CHECKER_V2 =
   "telling, and name the unused details. \"repetition\": the same point made twice in a way that drags, or " +
   "something earlier chapters already told, retold here. A deliberate callback, or a payoff that names the " +
   "answer, is not repetition. \"padding\": words that add nothing, such as restating why something matters, general " +
-  "background, or a sentence stretched out. \"ending\": the chapter ends on a rhetorical question or a teaser " +
+  "background, a sentence stretched out, or trivia that shares the subject but leaves the story's promise. \"ending\": the chapter ends on a rhetorical question or a teaser " +
   "when it was not told to, a closing line that does not follow from what came before it, or in the last " +
   "chapter a lesser fact after the main conclusion. \"voice\": a lecturing, academic or over-cautious " +
-  "passage, a stock narrator phrase, or a stretch with no personality where the material invited some. " +
+  "passage, a stock narrator phrase, talk of 'the notes', 'the extract' or 'the sources' themselves, or a stretch with no personality where the material invited some. " +
   "\"join\": the chapter does not follow on from the previous chapter's closing lines (a hard reset, a recap, " +
   "or a new name dropped in unexplained), or it starts on background. Quote the words, and say in " +
   "one line what would fix it. A fix says what to put in the place of the weak words, drawn from the notes, " +
@@ -514,7 +560,47 @@ async function ask(step: string, model: string, instructions: string, input: str
     body: JSON.stringify({ model, instructions, input }),
   });
   if (!res.ok) throw await openaiProblem(step, res);
+  return await settle(step, model, await res.json());
+}
+
+/**
+ * Starts a long model call on OpenAI's side and comes straight back with its id. The call is the
+ * same one ask() would make. It simply is not waited for inside one request, because a request
+ * that runs much over a minute can be cut off when its worker's time is up.
+ */
+async function askLater(step: string, model: string, instructions: string, input: string): Promise<string> {
+  const res = await fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ model, instructions, input, background: true, store: true }),
+  });
+  if (!res.ok) throw await openaiProblem(step, res);
   const data = await res.json();
+  if (typeof data.id !== "string") throw new Problem(502, `OpenAI did not start ${step}.`);
+  return data.id;
+}
+
+/**
+ * Collects a call started with askLater, waiting up to forty seconds for it. Null means it is
+ * still running, or that another request got to the finished reply first. `claim` is asked once
+ * the reply is in, so only one request pays attention to it and writes it to the ledger.
+ */
+async function collect(step: string, model: string, id: string, claim: () => Promise<boolean>): Promise<string | null> {
+  for (let waited = 0; ; waited += 4000) {
+    const res = await fetch(`https://api.openai.com/v1/responses/${id}`, { headers: { Authorization: `Bearer ${OPENAI_KEY}` } });
+    if (!res.ok) throw await openaiProblem(step, res);
+    const data = await res.json();
+    if (data.status !== "queued" && data.status !== "in_progress") {
+      if (data.status !== "completed") throw new Problem(502, `OpenAI did not finish ${step}.`, `${data.status} ${data.error?.message ?? data.incomplete_details?.reason ?? ""}`);
+      return (await claim()) ? await settle(step, model, data) : null;
+    }
+    if (waited >= 40_000) return null;
+    await new Promise((resolve) => setTimeout(resolve, 4000));
+  }
+}
+
+/** Reads a finished model reply: writes it to the ledger and returns its text. */
+async function settle(step: string, model: string, data: any): Promise<string> {
   // Every model call is written to the usage ledger, so cost is measured, not guessed. The
   // whole usage report is kept too, so anything it says about cache writes is not lost.
   const details = data.usage?.input_tokens_details ?? {};
@@ -721,31 +807,46 @@ function blueprintLines(chapter: Chapter): string {
     .join("\n");
 }
 
+/** The people the planner said matter, so every chapter introduces and recalls them the same way. */
+const castLine = (story: Story): string => {
+  const cast = (Array.isArray(story.cast) ? story.cast : [])
+    .filter((c: any) => c && text(c.name))
+    .slice(0, 8)
+    .map((c: any) => `${text(c.name)} (${[text(c.role), text(c.tag)].filter(Boolean).join(": ")})`);
+  return cast.length ? `\nCast: ${cast.join("; ")}` : "";
+};
+
 const storyLines = (story: Story | null | undefined, angle: string) =>
   story
     ? `The central question: ${text(story.central_curiosity) || angle}\nWhat makes it worth telling: ${text(story.core_fascination)}\n` +
-      `The feel of the whole story: ${text(story.tone)}\nWhere it ends up: ${text(story.final_payoff)}`
+      `The feel of the whole story: ${text(story.tone)}\nWhere it ends up: ${text(story.final_payoff)}` +
+      (text(story.promise) ? `\nThe promise (a ${text(story.mode) || "focused"} story): ${text(story.promise)}` : "") +
+      castLine(story)
     : `The angle: ${angle || "not stated"}`;
 
 /**
  * The editorial review. One pass, and it can only make the plan better or leave it alone:
  * if the reviewer's reply cannot be used, the plan it was given stands.
  */
-async function reviewPlan(story: Story, facts: Fact[], outline: Chapter[]): Promise<{ outline: Chapter[]; review: Record<string, unknown> }> {
+const reviewerBrief = (story: Story) =>
+  story.engine === 2 ? REVIEWER_BRIEF.replace("Score the plan as you received it", REVIEWER_V2 + "Score the plan as you received it") : REVIEWER_BRIEF;
+const reviewerInput = (story: Story, facts: Fact[], outline: Chapter[], title: string, hook: string) =>
+  (story.engine === 2 && title ? `Title: ${title}\nHook: ${hook}\n\n` : "") + `Story discovery:\n${JSON.stringify(story)}\n\nResearch notes:\n${facts.map((f) => `${f.id}. [${f.status ?? "fact"}] ${f.fact}`).join("\n")}\n\n` +
+  `Chapter blueprint:\n${JSON.stringify(outline)}`;
+
+async function reviewPlan(story: Story, facts: Fact[], outline: Chapter[], title = "", hook = "", given?: string): Promise<{ outline: Chapter[]; review: Record<string, unknown>; title?: string; hook?: string }> {
   try {
-    const reply = await ask(
-      "reviewing the story plan",
-      WRITER_MODEL,
-      story.engine === 2 ? REVIEWER_BRIEF.replace("Score the plan as you received it", REVIEWER_V2 + "Score the plan as you received it") : REVIEWER_BRIEF,
-      `Story discovery:\n${JSON.stringify(story)}\n\nResearch notes:\n${facts.map((f) => `${f.id}. [${f.status ?? "fact"}] ${f.fact}`).join("\n")}\n\n` +
-        `Chapter blueprint:\n${JSON.stringify(outline)}`,
-    );
+    // A reply collected by an earlier request is used as it is. An empty one means the review could not be had.
+    const reply = given ?? (await ask("reviewing the story plan", WRITER_MODEL, reviewerBrief(story), reviewerInput(story, facts, outline, title, hook)));
     const verdict = parseJson("reviewing the story plan", reply, "{", "}") as Record<string, unknown>;
     const revised = toChapters(verdict.chapters, facts);
     const usable = revised.length >= 3 && revised.every((c) => c.fact_ids.length > 0);
+    // A corrected title is taken only with the revised plan it was written for.
+    const retitled = usable && story.engine === 2 ? text(verdict.title).slice(0, 80) : "";
     return {
+      ...(retitled ? { title: retitled, hook: text(verdict.hook) || hook } : {}),
       outline: usable ? revised : outline,
-      review: { scores: verdict.scores ?? null, problems: verdict.problems ?? [], changes: verdict.changes ?? [], applied: usable, chapters_before: outline.length, chapters_after: usable ? revised.length : outline.length, first_draft: outline.map((c) => `${c.title} (${c.minutes} min)`) },
+      review: { scores: verdict.scores ?? null, problems: verdict.problems ?? [], changes: verdict.changes ?? [], ...(retitled ? { retitled_from: title } : {}), applied: usable, chapters_before: outline.length, chapters_after: usable ? revised.length : outline.length, first_draft: outline.map((c) => `${c.title} (${c.minutes} min)`) },
     };
   } catch (err) {
     return { outline, review: { applied: false, skipped: err instanceof Problem ? err.message : String(err) } };
@@ -978,7 +1079,7 @@ async function writeSecond(topicId: string) {
  * notes, the story discovery and the first draft of the chapter blueprint, and marks the
  * topic "planned". Returns null if the subject turns out to be one already offered.
  */
-async function planTopic(asked: string, proposed?: any, force = false, wanted?: number) {
+async function planTopic(asked: string, proposed?: any, force = false, wanted?: number, later = false) {
   const began = Date.now();
   // New stories use the newer writer. Setting writer_engine to 1 in the settings table goes
   // back to the older one for stories planned from then on, with no redeploy.
@@ -1011,12 +1112,30 @@ async function planTopic(asked: string, proposed?: any, force = false, wanted?: 
     }
 
     // Research notes, story discovery and the chapter blueprint, in one pass over the sources.
-    const planText = await ask(
-      "planning the story",
-      WRITER_MODEL,
-      plannerBrief(houseStyle, engine),
-      `Subject: ${asked}\n\n` + sources.map((s) => `=== ${s.title} ===\n${s.text}`).join("\n\n"),
-    );
+    const planInput = `Subject: ${asked}\n\n` + sources.map((s) => `=== ${s.title} ===\n${s.text}`).join("\n\n");
+    if (later) {
+      // The same single call, started on OpenAI's side. A later request collects it (see refill).
+      const call = await askLater("planning the story", WRITER_MODEL, plannerBrief(houseStyle, engine), planInput);
+      const { data: started } = await db
+        .from("topics")
+        .update({ status: "preparing", stage: "planning", sources: sources.map(({ title, url }) => ({ title, url })), review: { plan_call: call, plan_began: began, engine } })
+        .eq("id", topic.id)
+        .select()
+        .single();
+      return started;
+    }
+    const planText = await ask("planning the story", WRITER_MODEL, plannerBrief(houseStyle, engine), planInput);
+    return await savePlan(topic, asked, planText, sources, engine, began);
+  } catch (err) {
+    const message = err instanceof Problem ? `${err.message} ${err.detail ?? ""}`.trim() : String(err);
+    await db.from("topics").update({ status: "failed", stage: null, error: message.slice(0, 500) }).eq("id", topic.id);
+    throw err;
+  }
+}
+
+/** Turns the planner's reply into a saved plan, and marks the topic "planned". */
+async function savePlan(topic: any, asked: string, planText: string, sources: { title: string; url: string }[], engine: number, began: number) {
+  try {
     const plan = parseJson("planning the story", planText, "{", "}") as Record<string, unknown>;
     const facts: Fact[] = (Array.isArray(plan.facts) ? plan.facts : [])
       .filter((f: any) => f && typeof f.fact === "string" && Number.isFinite(Number(f.id)))
@@ -1057,14 +1176,15 @@ async function planTopic(asked: string, proposed?: any, force = false, wanted?: 
  * Step two: the editorial review of the plan, then the opening, written and checked. After
  * this the topic is ready, and starting a lesson from it only has to voice the opening.
  */
-async function finishTopic(topic: any) {
+async function finishTopic(topic: any, reviewReply?: string) {
   const began = Date.now();
   mark({ topic_id: topic.id });
   try {
     const houseStyle = await setting("story_brief", STORY_BRIEF);
     const facts: Fact[] = Array.isArray(topic.source_notes) ? topic.source_notes : [];
     const story: Story = topic.story && typeof topic.story === "object" ? topic.story : {};
-    const { outline, review } = await reviewPlan(story, facts, topic.outline as Chapter[]);
+    const { outline, review, title: newTitle, hook: newHook } = await reviewPlan(story, facts, topic.outline as Chapter[], topic.title ?? "", topic.hook ?? "", reviewReply);
+    if (newTitle) topic = { ...topic, title: newTitle, hook: newHook || topic.hook };
     story.recommended_minutes = fullMinutes(outline);
 
     const openingNotes = notesFor(facts, outline[0].fact_ids);
@@ -1096,6 +1216,8 @@ async function finishTopic(topic: any) {
       .update({
         status: "ready",
         stage: null,
+        title: topic.title,
+        hook: topic.hook,
         outline,
         story,
         review: { ...(topic.review ?? {}), ...review, opening: opening.review, finish_seconds: Math.round((Date.now() - began) / 1000) },
@@ -1248,19 +1370,63 @@ async function removeInterest(id: string) {
 async function refill() {
   // A step that never came back was cut off. Clear it out so it is not counted as under way.
   const stale = new Date(Date.now() - STALE_MS).toISOString();
-  await db
-    .from("topics")
-    .update({ status: "failed", stage: null, error: "Preparing took too long and was stopped." })
-    .eq("status", "preparing")
-    .or("stage.is.null,stage.eq.finishing")
-    .lt("proposed_at", stale);
+  const { data: cut } = await db.from("topics").select("id, stage, review").eq("status", "preparing").or("stage.is.null,stage.eq.finishing").lt("proposed_at", stale);
+  for (const t of cut ?? []) {
+    // A story cut off while being finished still has its plan, which was paid for. It gets one more go.
+    if (t.stage === "finishing" && !t.review?.requeued) {
+      await db.from("topics").update({ stage: "planned", review: { ...(t.review ?? {}), requeued: true } }).eq("id", t.id).eq("stage", "finishing");
+    } else {
+      await db.from("topics").update({ status: "failed", stage: null, error: "Preparing took too long and was stopped." }).eq("id", t.id).eq("status", "preparing");
+    }
+  }
 
   const unplayed = await unplayedTopics();
   const ready = unplayed.length;
 
+  // The two long model calls, the plan and its review, run on OpenAI's side. Collect one that is under way.
+  const { data: running } = await db.from("topics").select().eq("status", "preparing").in("stage", ["planning", "reviewing"]).order("proposed_at").limit(1).maybeSingle();
+  if (running) {
+    const planning = running.stage === "planning";
+    const step = planning ? "planning the story" : "reviewing the story plan";
+    const call = planning ? running.review?.plan_call : running.review?.review_call;
+    const began = Number(planning ? running.review?.plan_began : running.review?.review_began) || 0;
+    // Whoever collects the reply takes the topic on to its next stage, so it is only handled once.
+    const take = async () => {
+      const { data } = await db
+        .from("topics")
+        .update({ stage: planning ? null : "finishing", proposed_at: new Date().toISOString() })
+        .eq("id", running.id)
+        .eq("stage", running.stage)
+        .select()
+        .maybeSingle();
+      return Boolean(data);
+    };
+    mark({ topic_id: running.id });
+    let reply: string | null = null;
+    let lost = "";
+    try {
+      reply = await collect(step, WRITER_MODEL, String(call), take);
+      // Five minutes is far longer than either call takes. One still running then is stuck.
+      if (reply === null && Date.now() - began > 5 * 60 * 1000) lost = "It took too long and was stopped.";
+    } catch (err) {
+      lost = err instanceof Problem ? `${err.message} ${err.detail ?? ""}`.trim() : String(err);
+    }
+    if (planning) {
+      if (lost) await db.from("topics").update({ status: "failed", stage: null, error: lost.slice(0, 500) }).eq("id", running.id).eq("stage", "planning");
+      else if (reply !== null) await savePlan(running, running.asked ?? running.title, reply, running.sources ?? [], Number(running.review?.engine) || 2, began).catch(() => null);
+      return { ready, prepared: null, working: true };
+    }
+    // A review that could not be had does not stop the story: the plan stands as it was written.
+    if (lost && !(await take())) return { ready, prepared: null, working: true };
+    if (!lost && reply === null) return { ready, prepared: null, working: true };
+    return { ready: ready + 1, prepared: await finishTopic({ ...running, stage: "finishing" }, lost ? "" : reply ?? ""), working: true };
+  }
+
   // A topic that is planned and waiting gets finished before anything new is begun.
   const { data: planned } = await db.from("topics").select().eq("status", "preparing").eq("stage", "planned").order("proposed_at").limit(1).maybeSingle();
   if (planned) {
+    const story: Story = planned.story && typeof planned.story === "object" ? planned.story : {};
+    const facts: Fact[] = Array.isArray(planned.source_notes) ? planned.source_notes : [];
     const { data: mine } = await db
       .from("topics")
       .update({ stage: "finishing", proposed_at: new Date().toISOString() })
@@ -1269,7 +1435,20 @@ async function refill() {
       .select()
       .maybeSingle();
     if (!mine) return { ready, prepared: null, working: true };
-    return { ready: ready + 1, prepared: await finishTopic(mine), working: true };
+    // Measured on 23 Nov: run on OpenAI's side, the plan took 270 seconds against about 100 done directly.
+    // So both long calls are made directly again, and the "prepare" function gives them a fresh worker.
+    // Setting plan_mode to "later" in the settings table goes back to OpenAI's side, with no redeploy.
+    if ((await setting("plan_mode", "direct")) !== "later") return { ready: ready + 1, prepared: await finishTopic(mine), working: true };
+    try {
+      // Start the review on OpenAI's side. The next request collects it and writes the opening.
+      mark({ topic_id: mine.id });
+      const call = await askLater("reviewing the story plan", WRITER_MODEL, reviewerBrief(story), reviewerInput(story, facts, mine.outline as Chapter[], mine.title ?? "", mine.hook ?? ""));
+      await db.from("topics").update({ stage: "reviewing", review: { ...(mine.review ?? {}), review_call: call, review_began: Date.now() } }).eq("id", mine.id);
+      return { ready, prepared: null, working: true };
+    } catch {
+      // If it cannot be started that way, do it the old way, in this request.
+      return { ready: ready + 1, prepared: await finishTopic(mine), working: true };
+    }
   }
 
   // A ready story made by the newer writer gets its second chapter written ahead, one story per
@@ -1311,7 +1490,7 @@ async function refill() {
     .select()
     .maybeSingle();
   if (!claimed) return { ready, prepared: null, working: true };
-  await planTopic(claimed.asked, claimed);
+  await planTopic(claimed.asked, claimed, false, undefined, (await setting("plan_mode", "direct")) === "later");
   return { ready, prepared: null, working: true };
 }
 
@@ -1505,7 +1684,7 @@ async function load(lessonId: string, position: number) {
 
 /** Claims a chapter, so two requests for the same one cannot both pay to make it. */
 async function claim(segment: any): Promise<boolean> {
-  const stale = new Date(Date.now() - STALE_MS).toISOString();
+  const stale = new Date(Date.now() - CLAIM_MS).toISOString();
   const { data } = await db
     .from("segments")
     .update({ status: segment.script ? "voicing" : "writing", error: null, claimed_at: new Date().toISOString() })
@@ -1514,6 +1693,19 @@ async function claim(segment: any): Promise<boolean> {
     .neq("status", "ready")
     .select()
     .maybeSingle();
+  if (data) {
+    // Keep saying "still on it" until the chapter is ready or has failed. If this worker is cut
+    // off the signal stops with it, and the next request for the chapter takes over.
+    const began = Date.now();
+    const beat = setInterval(async () => {
+      try {
+        const { data: still } = await db.from("segments").update({ claimed_at: new Date().toISOString() }).eq("id", segment.id).in("status", ["writing", "voicing"]).select("id");
+        if (!still?.length || Date.now() - began > 150_000) clearInterval(beat);
+      } catch {
+        // One missed signal is not worth stopping the chapter for.
+      }
+    }, 10_000);
+  }
   return Boolean(data);
 }
 
@@ -1659,19 +1851,28 @@ async function scriptOnly(lessonId: string, position: number) {
  * copy as it goes by. If the listener leaves partway, the copy is still finished and saved.
  */
 async function streamSegment(lessonId: string, position: number): Promise<Response> {
-  const { lesson, segments, segment } = await load(lessonId, position);
+  const { lesson, segments, segment: first } = await load(lessonId, position);
+  let segment = first;
   const saved = async (s: any) => Response.redirect((await link(s.audio_path)) ?? "", 302);
   if (segment.status === "ready") return await saved(segment);
 
-  if (!(await claim(segment))) {
+  let mine = await claim(segment);
+  if (!mine) {
     // Someone else is already making it. Wait for them instead of paying twice.
-    for (let waited = 0; waited < 110_000; waited += 2000) {
+    for (let waited = 0; waited < 110_000 && !mine; waited += 2000) {
       await new Promise((resolve) => setTimeout(resolve, 2000));
       const { data } = await db.from("segments").select().eq("id", segment.id).single();
       if (data?.status === "ready") return await saved(data);
-      if (data?.status === "failed") break;
+      // Its maker failed or went silent. Take it over, while there is still time to make it in this request.
+      const dropped = data?.status === "failed" || (data?.claimed_at && Date.now() - Date.parse(data.claimed_at) > CLAIM_MS);
+      if (data && dropped) {
+        if (waited <= 45_000 && (await claim(data))) {
+          segment = data;
+          mine = true;
+        } else if (data.status === "failed") break;
+      }
     }
-    throw new Problem(503, "That chapter is still being made. Try again in a moment.");
+    if (!mine) throw new Problem(503, "That chapter is still being made. Try again in a moment.");
   }
 
   try {

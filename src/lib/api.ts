@@ -38,7 +38,9 @@ export type Lesson = {
   segments: Segment[];
 };
 
-async function call<T>(body: Record<string, unknown>, fn: 'lesson' | 'shelf' = 'lesson'): Promise<T> {
+// "prepare" and "chapter" are the lesson function under two more names. The long jobs go to them, so
+// each starts on a server worker of its own and is not cut off by one that is nearly out of time.
+async function call<T>(body: Record<string, unknown>, fn: 'lesson' | 'shelf' | 'prepare' | 'chapter' = 'lesson'): Promise<T> {
   if (!URL || !KEY) throw new Error('The app is missing its Supabase address or key. Check the .env file.');
   // The signed-in person's pass rides along, so the server knows whose request this is.
   const token = await accessToken();
@@ -84,7 +86,7 @@ export async function startLesson(topicId: string, minutes: number): Promise<Les
  */
 export async function refillTopics(): Promise<{ ready: number; prepared: Topic | null; working?: boolean }> {
   if (MOCK) return { ready: mockTopics.length, prepared: null, working: false };
-  return await call({ action: 'refill' });
+  return await call({ action: 'refill' }, 'prepare');
 }
 
 /**
@@ -104,7 +106,11 @@ export async function proposeTopics(): Promise<void> {
  */
 export function prewarmChapter(lessonId: string, position: number): void {
   if (MOCK) return;
-  call({ action: 'segment', lesson_id: lessonId, position }).catch(() => {});
+  // Written first, then recorded, as two requests: together they can run longer than the server allows one to.
+  call({ action: 'script', lesson_id: lessonId, position }, 'chapter')
+    .catch(() => {})
+    .then(() => call({ action: 'segment', lesson_id: lessonId, position }, 'chapter'))
+    .catch(() => {});
 }
 
 /** The interest a lesson grew out of, for showing small on the Chapters screen. */
