@@ -1051,6 +1051,84 @@ const chapterContext = (title: string, story: Story | null, angle: string, title
   `Lesson: ${title}\n${storyLines(story, angle)}\nChapters: ${titles.map((t, i) => `${i + 1}. ${t}`).join("; ")}\n\n` +
   `Chapter ${position}: "${chapter.title}"\n${blueprintLines(chapter)}`;
 
+// The lengths offered for a story. The chapter after the opening is written ahead for each of them.
+const SHORT_LENGTHS = [5, 10];
+
+/**
+ * Which chapters a telling of a given length plays, and how long each runs. The opening and the payoff
+ * are always in. The middle is filled by priority, for as long as there is time.
+ */
+function telling(outline: Chapter[], minutes: number, engine2: boolean) {
+  const { picked, lengths, bridges } = pickChapters(outline, minutes);
+  // A chapter that is left out but depended on is carried by the chapter that needs it: its
+  // essential beat and its notes go along, so the shorter story still holds together. A
+  // chapter's lead-in to the next is kept only if that next chapter is really the next one played.
+  const chosen = picked.map((i, k) => ({
+    ...outline[i],
+    fact_ids: [...new Set([...(outline[i].fact_ids ?? []), ...bridges[k].flatMap((j) => outline[j].fact_ids ?? [])])],
+    transition: picked[k + 1] === i + 1 ? outline[i].transition ?? "" : "",
+    skipped: bridges[k].map((j) => ({ title: outline[j].title, short: outline[j].short || outline[j].discovery || outline[j].brief })),
+  }));
+  if (engine2) {
+    // A shorter telling should still fill the time that was asked for where the story allows.
+    // Chapters carrying folded-in material have more to tell, so they get the spare minutes.
+    let spare = Math.round(minutes) - lengths.reduce((sum, m) => sum + m, 0);
+    for (let k = lengths.length - 1; k >= 1 && spare > 0; k--) {
+      const room = Math.min(spare, bridges[k].length, 5 - lengths[k]);
+      if (room > 0) {
+        lengths[k] += room;
+        spare -= room;
+      }
+    }
+  }
+  const total = lengths.reduce((sum, m) => sum + m, 0);
+  // True when the chapter after the opening is the plan's own second chapter, untouched.
+  const whole = picked[1] === 1 && bridges[1]?.length === 0 && lengths[1] === (outline[1].minutes ?? 0) && (picked[2] === 2 || outline.length === 2);
+  // What the chapter after the opening is made of in this telling, so one written ahead is only used for the same thing.
+  const mark = JSON.stringify([picked[1], lengths[1], bridges[1] ?? [], picked[2] ?? null, picked.length]);
+  return { picked, lengths, bridges, chosen, total, whole, mark };
+}
+
+/** The short lengths for which a story's second chapter has still to be written ahead. */
+function shortsToWrite(topic: any): number[] {
+  if (topic.story?.engine !== 2 || !Array.isArray(topic.outline) || topic.outline.length < 3) return [];
+  return SHORT_LENGTHS.filter((m) => {
+    if (topic.story.seconds?.[String(m)]) return false;
+    const plan = telling(topic.outline, m, true);
+    return !plan.whole && plan.chosen.length >= 2;
+  });
+}
+
+/** Writes ahead the chapter after the opening for one short length, where it carries folded-in material. */
+async function writeShortSecond(topicId: string, minutes: number) {
+  const { data: topic } = await db.from("topics").select().eq("id", topicId).maybeSingle();
+  if (!topic || topic.status !== "ready" || topic.story?.engine !== 2) return;
+  mark({ topic_id: topic.id });
+  const plan = telling(topic.outline as Chapter[], minutes, true);
+  const chapter = plan.chosen[1] as Chapter;
+  const facts: Fact[] = topic.source_notes ?? [];
+  let written: Record<string, unknown> = { script: "" };
+  try {
+    written = await writeChapter({
+      context: chapterContext(topic.title, topic.story, topic.angle ?? "", plan.chosen.map((c) => c.title), 2, chapter),
+      chapter,
+      notes: notesFor(facts, chapter.fact_ids),
+      covered: `Chapter 1, ${topic.outline[0].title}: ${topic.opening_summary || "the opening."}`,
+      minutes: plan.lengths[1],
+      role: plan.chosen.length === 2 ? "last" : "middle",
+      afterOpening: true,
+      before: closing(topic.opening_script),
+      houseStyle: await setting("story_brief", STORY_BRIEF),
+    });
+  } catch {
+    // Left marked as tried, so one bad chapter cannot hold up everything behind it. It is written when asked for.
+  }
+  // Read again before saving, so a chapter written for another length in the meantime is not lost.
+  const { data: fresh } = await db.from("topics").select("story").eq("id", topic.id).maybeSingle();
+  const story = fresh?.story ?? topic.story;
+  await db.from("topics").update({ story: { ...story, seconds: { ...(story.seconds ?? {}), [String(minutes)]: { ...written, shape: plan.mark } } } }).eq("id", topic.id);
+}
+
 /**
  * Engine 2 writes the chapter after the opening ahead of time, for the whole-story telling,
  * so the most important handover in the story gets the full edit with no clock running.
@@ -1524,6 +1602,14 @@ async function refill() {
   const want = reserve ? RESERVE : READY_TARGET;
   // For the reserve, only the stories this person would be shown get their next chapter written ahead.
   const waiting = (reserve ? unplayed.slice(0, RESERVE) : unplayed).find((t: any) => t.story?.engine === 2 && !t.story.second);
+  // The short lengths come next: their second chapter carries folded-in material and is the slowest to
+  // write, which is what left silence after the opening. Only the scheduled job does this.
+  const short = !waiting && reserve ? unplayed.slice(0, RESERVE).find((t: any) => shortsToWrite(t).length > 0) : null;
+  if (short) {
+    mark({ worked: true });
+    await writeShortSecond(short.id, shortsToWrite(short)[0]);
+    return { ready, prepared: null, working: true };
+  }
   if (waiting) {
     mark({ worked: true });
     try {
@@ -1628,33 +1714,13 @@ async function start(topicId: string, minutes: number) {
 
   // The opening and the payoff are always in. The middle is filled by priority, for as long
   // as there is time. A lesson is never stretched past the story it has.
-  const { picked, lengths, bridges } = pickChapters(outline, minutes);
-  // A chapter that is left out but depended on is carried by the chapter that needs it: its
-  // essential beat and its notes go along, so the shorter story still holds together. A
-  // chapter's lead-in to the next is kept only if that next chapter is really the next one played.
-  const chosen = picked.map((i, k) => ({
-    ...outline[i],
-    fact_ids: [...new Set([...(outline[i].fact_ids ?? []), ...bridges[k].flatMap((j) => outline[j].fact_ids ?? [])])],
-    transition: picked[k + 1] === i + 1 ? outline[i].transition ?? "" : "",
-    skipped: bridges[k].map((j) => ({ title: outline[j].title, short: outline[j].short || outline[j].discovery || outline[j].brief })),
-  }));
   const engine2 = topic.story?.engine === 2;
-  if (engine2) {
-    // A shorter telling should still fill the time that was asked for where the story allows.
-    // Chapters carrying folded-in material have more to tell, so they get the spare minutes.
-    let spare = Math.round(minutes) - lengths.reduce((sum, m) => sum + m, 0);
-    for (let k = lengths.length - 1; k >= 1 && spare > 0; k--) {
-      const room = Math.min(spare, bridges[k].length, 5 - lengths[k]);
-      if (room > 0) {
-        lengths[k] += room;
-        spare -= room;
-      }
-    }
-  }
-  const total = lengths.reduce((sum, m) => sum + m, 0);
-  // The chapter after the opening was written ahead for the whole story. It is used when this
-  // telling plays that same chapter, unchanged, with the same chapter after it.
-  const second = engine2 && topic.story.second?.script && picked[1] === 1 && bridges[1]?.length === 0 && lengths[1] === (outline[1].minutes ?? 0) && (picked[2] === 2 || outline.length === 2) ? topic.story.second : null;
+  const { picked, lengths, bridges, chosen, total, whole, mark: shape } = telling(outline, minutes, engine2);
+  // The chapter after the opening is written ahead: once for the whole story, and once for each of the
+  // short lengths, where it carries folded-in material and takes longest to write. It is used when this
+  // telling plays exactly the chapter that was written.
+  const ahead = topic.story?.seconds?.[String(Math.round(minutes))];
+  const second = !engine2 ? null : whole && topic.story.second?.script ? topic.story.second : ahead?.script && ahead.shape === shape ? ahead : null;
 
   // The same topic at the same length is the same lesson. Hand back the one that exists,
   // so its saved audio is reused and nothing is paid for twice.
@@ -1691,7 +1757,7 @@ async function start(topicId: string, minutes: number) {
       source_notes: topic.source_notes,
       sources: topic.sources,
       covered_summary:
-        `Chapter 1, ${outline[0].title}: ${topic.opening_summary || "the opening."}` + (second ? `\nChapter 2, ${outline[1].title}: ${second.summary || "no summary given."}` : ""),
+        `Chapter 1, ${outline[0].title}: ${topic.opening_summary || "the opening."}` + (second ? `\nChapter 2, ${chosen[1].title}: ${second.summary || "no summary given."}` : ""),
       writer_model: WRITER_MODEL,
     })
     .select()
