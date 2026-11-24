@@ -54,7 +54,7 @@ const PROPOSER_BRIEF =
   "card is the headline the listener reads in a list and taps on, before anything is researched. Write it " +
   "from the one ridiculous true fact you chose the subject for, and put that fact in the headline itself, " +
   "concretely: what happened, and to whom or what. Shape it 'The [someone or something] that [did the " +
-  "absurd thing]', with 'who' for a person, in twelve words at most, plain words, no colon and no question. " +
+  "absurd thing]', with 'who' for a person, in nine words and fifty characters at most, plain words, no colon and no question. " +
   "It must work for someone who has never heard of the subject, so describe a person by what they were " +
   "('the pope', 'the dentist', 'the emperor') and never lean on a name. It must not be vague, a pun, or a " +
   "teaser that hides the point: 'The philosopher who searched for an honest man' only describes, and 'The " +
@@ -126,6 +126,13 @@ async function listLessons() {
     .order("started_at", { ascending: false })
     .limit(60);
   if (error) return json({ error: "Your lessons could not be loaded.", detail: error.message }, 500);
+  // Liked means the last word on a story was a thumbs up or a "loved".
+  const { data: said } = await db.from("signals").select("lesson_id, type, created_at").not("lesson_id", "is", null).in("type", ["thumbs_up", "loved", "thumbs_down", "not_for_me", "cleared"]).order("created_at").limit(2000);
+  const liked = new Set<string>();
+  for (const s of (said ?? []) as any[]) {
+    if (s.type === "thumbs_up" || s.type === "loved") liked.add(s.lesson_id);
+    else liked.delete(s.lesson_id);
+  }
   const lessons = (data ?? [])
     .map((l: any) => ({
       id: l.id,
@@ -135,6 +142,7 @@ async function listLessons() {
       tag: l.topics?.tag ?? null,
       chapters: l.segments.length,
       made: l.segments.filter((s: any) => s.status === "ready").length,
+      liked: liked.has(l.id),
       finished: Boolean(l.finished_at),
       // What is left counts the chapter they were in as still to hear, so it is "about" this much.
       // Stories played before this was recorded have no figure.
@@ -247,6 +255,8 @@ async function propose() {
         tag: labels.find((l) => l.toLowerCase() === String(t?.tag ?? "").trim().toLowerCase()) ?? (slots[i] && slots[i] !== "Off the map" ? slots[i] : "Off the map"),
       }))
       .filter((t) => t.title.length > 0 && !offered.has(plain(t.title)))
+      // In Explore every row is the same height, so a headline that would not fit is not offered.
+      .filter((t) => !stocking || (t.card.length > 0 && t.card.length <= 56))
       .slice(0, batch);
   } catch {
     return json({ error: "The proposed topics could not be read." }, 502);
@@ -299,7 +309,7 @@ async function ideas() {
   const kept = new Set(labels.map((l: string) => l.toLowerCase()));
   return {
     tags: labels,
-    ideas: (data ?? []).filter((t: any) => !t.tag || t.tag === "Off the map" || kept.has(String(t.tag).toLowerCase())).map((t: any) => ({ id: t.id, title: t.title, tag: t.tag ?? null })),
+    ideas: (data ?? []).filter((t: any) => String(t.title).length <= 60).filter((t: any) => !t.tag || t.tag === "Off the map" || kept.has(String(t.tag).toLowerCase())).map((t: any) => ({ id: t.id, title: t.title, tag: t.tag ?? null })),
     queued_today: state.today,
     per_day: QUEUE_PER_DAY,
     waiting: state.waiting,

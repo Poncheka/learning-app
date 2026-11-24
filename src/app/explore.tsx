@@ -11,7 +11,8 @@ import { Em, Icon, Screen, Serif, TabBar, Wordmark } from '@/components/ui';
 import { dismissIdea, listIdeas, queueIdea, type Idea } from '@/lib/api';
 import { colors, fonts, gutter } from '@/theme';
 
-const TILE = 76;
+// Every row is this tall, and its cover is a square of the same size, so the covers line up down the page.
+const TILE = 84;
 // What was last read, kept while the app is open, so coming back to this tab shows it at once.
 let kept: { ideas: Idea[]; tags: string[] } | null = null;
 type Banner = { title: string; note: string } | null;
@@ -129,7 +130,7 @@ export default function Explore() {
           <SwipeAway key={idea.id} label="Not for me" onAway={() => away(idea)} style={styles.slot}>
             <Pressable accessibilityRole="button" accessibilityLabel={`${idea.title}. Add to my stories.`} onPress={() => queue(idea)} style={({ pressed }) => [styles.row, pressed && { opacity: 0.85 }]}>
               <CoverTile id={idea.id} size={TILE} />
-              <Text style={[styles.title, { alignSelf: 'center' }]}>
+              <Text style={styles.title} numberOfLines={3}>
                 {idea.title.replace(/[.\s]+$/, '')}
               </Text>
               <View style={styles.plus}>
@@ -175,9 +176,9 @@ const styles = StyleSheet.create({
   scroll: { flex: 1, minHeight: 0 },
   list: { paddingHorizontal: gutter, paddingBottom: 12, gap: 8 },
   slot: { overflow: 'hidden' },
-  row: { flexDirection: 'row', alignItems: 'stretch', backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, minHeight: TILE },
-  // The whole headline always shows. A long one makes its row taller.
-  title: { flex: 1, fontFamily: fonts.bodySemi, fontSize: 17, lineHeight: 21, color: colors.ink, paddingHorizontal: 14, paddingVertical: 10 },
+  row: { flexDirection: 'row', alignItems: 'stretch', backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, height: TILE },
+  // The same lettering as story titles on Listen and in the Library. Headlines are kept to about fifty characters, so three lines always hold them.
+  title: { flex: 1, alignSelf: 'center', fontFamily: fonts.display, fontSize: 16, lineHeight: 18, letterSpacing: -0.4, textTransform: 'uppercase', color: colors.ink, paddingHorizontal: 14 },
   plus: { width: 44, height: 44, borderRadius: 22, borderWidth: 1.5, borderColor: colors.ink, alignItems: 'center', justifyContent: 'center', marginRight: 12, alignSelf: 'center' },
   empty: { alignItems: 'center', gap: 12, paddingVertical: 48, paddingHorizontal: 12 },
   note: { fontFamily: fonts.body, fontSize: 16, lineHeight: 22, color: colors.gray, textAlign: 'center' },

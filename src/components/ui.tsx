@@ -29,6 +29,7 @@ const fills = {
   star: 'M12 1l1.6 8.4L22 12l-8.4 2.6L12 23l-1.6-8.4L2 12l8.4-2.6z',
   play: 'M7 4.5v15a1 1 0 0 0 1.5.9l12-7.5a1 1 0 0 0 0-1.8l-12-7.5A1 1 0 0 0 7 4.5z',
   pause: 'M6 5h4v14H6zM14 5h4v14h-4z',
+  heart: 'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z',
 } as const;
 
 export type IconName = keyof typeof strokes | keyof typeof fills | 'interests';
@@ -191,7 +192,7 @@ export function Screen({ children, style, flush }: { children: ReactNode; style?
 }
 
 const tabs = [
-  { key: 'library', label: 'History', icon: 'list', href: '/library' },
+  { key: 'library', label: 'Library', icon: 'list', href: '/library' },
   { key: 'listen', label: 'Listen', icon: 'star', href: '/listen' },
   { key: 'explore', label: 'Explore', icon: 'compass', href: '/explore' },
 ] as const;

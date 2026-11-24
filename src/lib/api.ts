@@ -64,6 +64,8 @@ export type LessonSummary = {
   made: number;
   /** The interest this lesson grew out of. Lessons made before tags were recorded have none. */
   tag: string | null;
+  /** True when the listener gave it a thumbs up. */
+  liked?: boolean;
   /** True once it has been heard to the end. */
   finished?: boolean;
   /** About how many minutes are left to hear. Null when finished, or when it was played before this was recorded. */

@@ -9,6 +9,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 
 import { arrive } from '@/lib/arrive';
+import { hasNext } from '@/state/library';
 import { usePlayer } from '@/state/player';
 import { useSession } from '@/state/session';
 import { colors } from '@/theme';
@@ -40,7 +41,8 @@ export default function RootLayout() {
   const phase = usePlayer((s) => s.phase);
   const pathname = usePathname();
   useEffect(() => {
-    if (phase !== 'finished' || pathname === '/finished') return;
+    // During "Play all" the next story is about to start, so the wrap screen stays out of the way.
+    if (phase !== 'finished' || pathname === '/finished' || hasNext()) return;
     // From the player, the wrap screen takes its place. From anywhere else, it comes up on top.
     if (pathname === '/playing') router.replace('/finished');
     else router.push('/finished');
@@ -89,6 +91,7 @@ export default function RootLayout() {
         <Stack.Screen name="library" options={{ animation: 'fade' }} />
         <Stack.Screen name="interests" options={{ animation: 'fade' }} />
         <Stack.Screen name="explore" options={{ animation: 'fade' }} />
+        <Stack.Screen name="playlist" />
         <Stack.Screen name="chapters" options={{ presentation: 'modal' }} />
       </Stack>
     </>
