@@ -493,7 +493,27 @@ async function setting(key: string, fallback: string): Promise<string> {
   return value || fallback;
 }
 
-async function narrator(owner?: string | null): Promise<{ voice: string; direction: string }> {
+// ---------- A second narrator ----------
+//
+// New recordings can be read by an ElevenLabs voice instead of OpenAI's. The settings table
+// decides: narrator_engine "eleven" turns it on, and anything else is OpenAI as before. Stories
+// already begun in the OpenAI voice are finished in it, so no story changes narrator part way
+// and nothing already recorded is recorded again. If ElevenLabs refuses for lack of credit or a
+// bad key, the switch is thrown back to OpenAI at once, so stories keep coming.
+const ELEVEN_KEY = Deno.env.get("ELEVENLABS_API_KEY") ?? "";
+const ELEVEN_VOICE_ID = "ANYdMtqQZTRmq10Nw496"; // Ella, casual New Zealand female.
+const ELEVEN_MODEL = "eleven_v4_turbo";
+/** A narrator's name is OpenAI's when it is on their list. Any other name is an ElevenLabs voice. */
+const isEleven = (voice: string) => !VOICES.includes(voice);
+async function voiceModel(voice: string): Promise<string> {
+  return isEleven(voice) ? await setting("eleven_model", ELEVEN_MODEL) : VOICE_MODEL;
+}
+
+/**
+ * Who reads, and how. `segments` are the chapters of the lesson being recorded, when there is
+ * one: a lesson that already has a chapter in an OpenAI voice keeps that voice to the end.
+ */
+async function narrator(owner?: string | null, segments?: any[]): Promise<{ voice: string; direction: string }> {
   // The narrator is each listener's own choice. A recording uses the choice of whoever owns the lesson.
   let asked = db.from("user_settings").select("value").eq("key", "voice");
   if (owner) asked = asked.eq("user_id", owner);
@@ -501,8 +521,13 @@ async function narrator(owner?: string | null): Promise<{ voice: string; directi
   const chosen = typeof data?.value === "string" && data.value.trim() ? data.value.trim() : VOICE;
   // One narrator for everyone, so a recording made for one listener can be played to the next.
   // Setting voice_lock to "off" in the settings table gives each listener their own choice back.
-  const voice = (await setting("voice_lock", "cedar")) === "off" ? chosen : "cedar";
-  return { voice: VOICES.includes(voice) ? voice : VOICE, direction: await setting("narrator_direction", VOICE_STYLE) };
+  const openai = (await setting("voice_lock", "cedar")) === "off" ? chosen : "cedar";
+  const direction = await setting("narrator_direction", VOICE_STYLE);
+  const begun = (segments ?? []).find((s) => s.status === "ready" && typeof s.voice === "string" && VOICES.includes(s.voice));
+  if (!begun && ELEVEN_KEY && (await setting("narrator_engine", "openai")) === "eleven") {
+    return { voice: (await setting("eleven_voice_name", "ella")).toLowerCase(), direction };
+  }
+  return { voice: begun?.voice ?? (VOICES.includes(openai) ? openai : VOICE), direction };
 }
 
 // ---------- The usage ledger ----------
@@ -748,6 +773,25 @@ function parseJson(step: string, text: string, open: string, close: string): unk
 
 /** Asks for speech. The reply's body arrives piece by piece while the audio is generated. */
 async function speech(text: string, voice: string, direction: string): Promise<Response> {
+  if (isEleven(voice)) {
+    // ElevenLabs takes no written direction. The voice itself carries the manner.
+    const id = await setting("eleven_voice_id", ELEVEN_VOICE_ID);
+    const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${id}/stream?output_format=mp3_44100_128`, {
+      method: "POST",
+      headers: { "xi-api-key": ELEVEN_KEY, "Content-Type": "application/json" },
+      body: JSON.stringify({ text, model_id: await setting("eleven_model", ELEVEN_MODEL) }),
+    });
+    if (!res.ok) {
+      const detail = (await res.text()).slice(0, 400);
+      // Out of credit, or the key no longer works: go back to the OpenAI narrator until someone looks.
+      if (res.status === 401 || res.status === 402 || /quota|credit|payment/i.test(detail)) {
+        await service.from("settings").upsert({ key: "narrator_engine", value: "openai" }).then(() => {}, () => {});
+        await service.from("settings").upsert({ key: "narrator_engine_note", value: `${new Date().toISOString()} ElevenLabs refused: ${res.status} ${detail}`.slice(0, 500) }).then(() => {}, () => {});
+      }
+      throw new Problem(502, "ElevenLabs failed while voicing the chapter.", `${res.status}: ${detail}`);
+    }
+    return res;
+  }
   const res = await fetch("https://api.openai.com/v1/audio/speech", {
     method: "POST",
     headers: { Authorization: `Bearer ${OPENAI_KEY}`, "Content-Type": "application/json" },
@@ -1902,7 +1946,7 @@ async function start(topicId: string, minutes: number) {
     if (theirs.length !== lengths.length) continue;
     const run: any[] = [];
     for (const s of theirs) {
-      if (s.position !== run.length + 1 || s.status !== "ready" || !s.audio_path || !s.script || s.voice !== voiceNow || s.title !== chosen[run.length].title) break;
+      if (s.position !== run.length + 1 || s.status !== "ready" || !s.audio_path || !s.script || !(run.length ? s.voice === run[0].voice : s.voice === voiceNow || s.voice === "cedar") || s.title !== chosen[run.length].title) break;
       run.push(s);
     }
     if (run.length > lent.length) lent = run;
@@ -2184,10 +2228,11 @@ async function saveAudio(segment: any, audio: Uint8Array, voice: string) {
   // Each recording made is a line in the ledger, including one made again for the same chapter.
   mark({ lesson_id: segment.lesson_id, position: segment.position });
   const sound = mp3Shape(audio);
-  await record({ kind: "voice", step: "voicing the chapter", model: VOICE_MODEL, voice, chars: typeof segment.script === "string" ? segment.script.length : null, audio_bytes: audio.length, audio_seconds: mp3Seconds(audio) });
+  const model = await voiceModel(voice);
+  await record({ kind: "voice", step: "voicing the chapter", model, voice, chars: typeof segment.script === "string" ? segment.script.length : null, audio_bytes: audio.length, audio_seconds: mp3Seconds(audio) });
   const { data } = await db
     .from("segments")
-    .update({ status: "ready", audio_path: path, voice_model: VOICE_MODEL, voice, ready_at: new Date().toISOString(), shape: sound?.shape ?? "", duration_sec: sound ? Math.round(sound.seconds) : null })
+    .update({ status: "ready", audio_path: path, voice_model: model, voice, ready_at: new Date().toISOString(), shape: sound?.shape ?? "", duration_sec: sound ? Math.round(sound.seconds) : null })
     .eq("id", segment.id)
     .select()
     .single();
@@ -2200,7 +2245,7 @@ async function makeSegment(lessonId: string, position: number) {
   if (segment.status === "ready" || !(await claim(segment))) return await describe(segment);
   try {
     const script = await ensureScript(lesson, segments, segment);
-    const { voice, direction } = await narrator(lesson.user_id);
+    const { voice, direction } = await narrator(lesson.user_id, segments);
     return await describe(await saveAudio(segment, await speakAll(script, voice, direction), voice));
   } catch (err) {
     await fail(segment, err);
@@ -2257,7 +2302,7 @@ async function streamSegment(lessonId: string, position: number): Promise<Respon
 
   try {
     const script = await ensureScript(lesson, segments, segment);
-    const { voice, direction } = await narrator(lesson.user_id);
+    const { voice, direction } = await narrator(lesson.user_id, segments);
     if (script.length > CHUNK_CHARS) {
       const audio = await speakAll(script, voice, direction);
       await saveAudio(segment, audio, voice);
