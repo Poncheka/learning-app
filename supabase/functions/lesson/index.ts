@@ -15,7 +15,7 @@
 // POST { action: "get", lesson_id }               the lesson, its chapters, and links to finished audio.
 // POST { action: "lessons" }                      lessons with something to replay, newest first.
 // POST { action: "check", titles?: string[] }      free self-test. Calls no paid service.
-// GET  ?lesson_id=...&position=...&apikey=...      the chapter's audio, played while it is being made.
+// GET  ?lesson_id=...&position=...&apikey=...      the chapter's audio: made first if need be, then the saved file.
 //
 // Why a lesson starts quickly: everything slow is done before the listener taps. Preparing a
 // topic reads the sources, plans the chapters and writes a one minute opening, all as text,
@@ -540,7 +540,7 @@ async function voiceModel(voice: string): Promise<string> {
  * Who reads, and how. `segments` are the chapters of the lesson being recorded, when there is
  * one: a lesson that already has a chapter in an OpenAI voice keeps that voice to the end.
  */
-async function narrator(owner?: string | null, segments?: any[]): Promise<{ voice: string; direction: string }> {
+async function narrator(owner?: string | null, segments?: any[], topicId?: string | null): Promise<{ voice: string; direction: string }> {
   // The narrator is each listener's own choice. A recording uses the choice of whoever owns the lesson.
   let asked = db.from("user_settings").select("value").eq("key", "voice");
   if (owner) asked = asked.eq("user_id", owner);
@@ -558,7 +558,8 @@ async function narrator(owner?: string | null, segments?: any[]): Promise<{ voic
     const kept = begun ? voices.find((v) => v.name === begun.voice) : null;
     const open = voices.filter((v) => v.on);
     const pool = open.length > 0 ? open : voices;
-    return { voice: (kept ?? pool[turnOf(segments?.[0]?.lesson_id) % pool.length]).name, direction };
+    // Chosen by the story, not the lesson, so every length of a story, and its opening recorded ahead, share one voice.
+    return { voice: (kept ?? pool[turnOf(topicId ?? segments?.[0]?.lesson_id) % pool.length]).name, direction };
   }
   return { voice: fromOpenai ?? (VOICES.includes(openai) ? openai : VOICE), direction };
 }
@@ -1528,7 +1529,7 @@ function describeTopic(topic: any) {
 async function unplayedTopics(): Promise<any[]> {
   // Stories are shared, but which ones a person has played or swiped away is their own. Read
   // as that person, the lessons and dismissals that come back are only theirs.
-  const { data } = await mine().from("topics").select("*, lessons(id, user_id), dismissals(topic_id, user_id)").eq("status", "ready").order("prepared_at", { ascending: false }).limit(60);
+  const { data } = await mine().from("topics").select("*, lessons(id, user_id), dismissals(topic_id, user_id)").eq("status", "ready").order("prepared_at", { ascending: false }).limit(300);
   // The scheduled job reads on a person's behalf without their pass, so "theirs" is also checked here by name.
   const theirs = (rows: any[] | null) => (rows ?? []).filter((r: any) => !me() || r.user_id === me());
   const open = (data ?? []).filter((t: any) => theirs(t.lessons).length === 0 && theirs(t.dismissals).length === 0);
@@ -1539,15 +1540,63 @@ async function unplayedTopics(): Promise<any[]> {
   // Someone new is shown the starter stories early: they are finished, so they start at once and cost nothing.
   const { count: heard } = await db.from("lessons").select("id", { count: "exact", head: true }).eq("user_id", me());
   const fresh = (heard ?? 0) < 3;
-  const rank = (t: any) => (t.proposed_for === me() ? 0 : fresh && t.starter ? 0.5 : labels.has(String(t.tag ?? "").toLowerCase()) ? 1 : 2);
+  // Finished stories they picked in Explore count as theirs.
+  const { data: wanted } = await db.from("wants").select("topic_id").eq("user_id", me());
+  const picked = new Set((wanted ?? []).map((w: any) => w.topic_id));
+  // How each story has done with everyone, and how many lengths it is already recorded at.
+  const { data: scored } = await service.rpc("topic_scores");
+  const score = new Map<string, { score: number; lengths: number }>((scored ?? []).map((r: any) => [r.topic_id, { score: Number(r.score) || 0, lengths: Number(r.lengths) || 0 }]));
+  const recorded = (t: any) => t.starter || (score.get(t.id)?.lengths ?? 0) > 0;
+  const theirTag = (t: any) => labels.has(String(t.tag ?? "").toLowerCase());
+  // Someone new is shown stories that are already recorded first, the best liked in their own
+  // interests ahead of the rest: they start at once, cost nothing, and others enjoyed them.
+  const rank = (t: any) =>
+    t.proposed_for === me() || picked.has(t.id) ? 0 : fresh && recorded(t) && theirTag(t) ? 0.5 : fresh && recorded(t) ? 0.75 : theirTag(t) ? 1 : 2;
   return open
-    .map((t: any, i: number) => ({ t: { ...t, _rank: rank(t) }, i }))
-    .sort((a: any, b: any) => a.t._rank - b.t._rank || a.i - b.i)
+    .map((t: any, i: number) => ({ t: { ...t, _rank: rank(t) }, i, s: score.get(t.id)?.score ?? 0 }))
+    // Their own stories stay newest first. Everywhere else the better liked and more heard come first.
+    .sort((a: any, b: any) => a.t._rank - b.t._rank || (a.t._rank === 0 ? 0 : b.s - a.s) || a.i - b.i)
     .map((x: any) => x.t);
 }
 
+/**
+ * Records the opening of the first story on this person's Listen tab that has none yet, so a tap
+ * plays it at once instead of waiting about ten seconds for it to be recorded. Only stories on the
+ * Listen tab are recorded ahead, one a minute, and a story keeps its recording for whoever plays it.
+ */
+async function openingStep(): Promise<boolean> {
+  if ((await setting("record_openings", "on")) !== "on") return false;
+  for (const t of (await unplayedTopics()).slice(0, 6)) {
+    if (t.opening_audio_path || typeof t.opening_script !== "string" || !t.opening_script.trim()) continue;
+    // Already recorded for someone's lesson of this story, so a tap will use that.
+    const { data: had } = await service.from("segments").select("id, lessons!inner(topic_id)").eq("position", 1).eq("status", "ready").eq("lessons.topic_id", t.id).limit(1).maybeSingle();
+    if (had) continue;
+    const { voice, direction } = await narrator(me(), undefined, t.id);
+    const model = await voiceModel(voice);
+    mark({ topic_id: t.id });
+    const audio = await speakAll(t.opening_script, voice, direction);
+    const path = `openings/${t.id}.mp3`;
+    const { error } = await service.storage.from(BUCKET).upload(path, audio, { contentType: "audio/mpeg", upsert: true });
+    if (error) throw new Problem(500, "The opening could not be saved.", error.message);
+    const sound = mp3Shape(audio);
+    const seconds = sound ? Math.round(sound.seconds) : mp3Seconds(audio);
+    await record({ kind: "voice", step: "voicing the opening ahead", model, voice, chars: t.opening_script.length, audio_bytes: audio.length, audio_seconds: seconds });
+    await service.from("topics").update({ opening_audio_path: path, opening_voice: voice, opening_voice_model: model, opening_shape: sound?.shape ?? "", opening_seconds: seconds }).eq("id", t.id);
+    mark({ worked: true });
+    return true;
+  }
+  return false;
+}
+
 async function listTopics() {
-  return { topics: (await unplayedTopics()).slice(0, 6).map(describeTopic) };
+  const topics = (await unplayedTopics()).slice(0, 6).map(describeTopic);
+  if (!me()) return { topics };
+  // Where they stand against today's allowance of new stories, so the app can say so plainly
+  // instead of going quiet. The allowance is the last 24 hours, so it opens up again a story at a time.
+  const { data: today } = await service.from("topics").select("proposed_at").eq("proposed_for", me()).gt("proposed_at", new Date(Date.now() - 86_400_000).toISOString()).in("status", ["ready", "preparing", "failed"]).order("proposed_at").limit(100);
+  const made = (today ?? []).length;
+  const first = today?.[0]?.proposed_at;
+  return { topics, limit: { made_today: made, per_day: DAILY_NEW, opens_at: made >= DAILY_NEW && first ? new Date(Date.parse(first) + 86_400_000).toISOString() : null } };
 }
 
 // ---------- Interests and topic suggestions ----------
@@ -1617,6 +1666,8 @@ async function tick() {
           await think(id, false);
           step = await refill();
         }
+        // With nothing else to do for them this minute, the opening of a story on their Listen tab is recorded.
+        if (!seat.worked) await openingStep();
       } catch (err) {
         console.log("tick:", err instanceof Problem ? `${err.message} ${err.detail ?? ""}` : String(err));
       }
@@ -1970,7 +2021,7 @@ async function start(topicId: string, minutes: number) {
   // chapters, written from the same plan and read by the same narrator, so the finished ones are
   // lent to this listener: nothing is written or recorded twice. Chapters are written in order, each
   // knowing what came before, so only an unbroken run from the start is lent.
-  const voiceNow = (await narrator(me())).voice;
+  const voiceNow = (await narrator(me(), undefined, topic.id)).voice;
   // With several voices on trial, a story recorded in any of them can be lent. It stays in that voice.
   const lendable = new Set<string>(isEleven(voiceNow) ? (await elevenVoices()).map((v) => v.name) : []);
   const { data: heardBefore } = await service
@@ -1994,14 +2045,20 @@ async function start(topicId: string, minutes: number) {
 
   // The opening is the same whatever length is chosen. If it has been voiced before, for a
   // lesson of another length, that recording is used again.
-  const { data: voiced } = await db
+  const { data: voicedBefore } = await db
     .from("segments")
-    .select("audio_path, voice, voice_model, lessons!inner(topic_id)")
+    .select("audio_path, voice, voice_model, shape, duration_sec, lessons!inner(topic_id)")
     .eq("position", 1)
     .eq("status", "ready")
     .eq("lessons.topic_id", topic.id)
     .limit(1)
     .maybeSingle();
+  // Failing that, the opening may have been recorded ahead, while the story sat on the Listen tab.
+  const voiced: any =
+    voicedBefore ??
+    (topic.opening_audio_path
+      ? { audio_path: topic.opening_audio_path, voice: topic.opening_voice, voice_model: topic.opening_voice_model, shape: topic.opening_shape, duration_sec: topic.opening_seconds }
+      : null);
 
   const { data: lesson, error: lessonError } = await db
     .from("lessons")
@@ -2285,7 +2342,7 @@ async function makeSegment(lessonId: string, position: number) {
   if (segment.status === "ready" || !(await claim(segment))) return await describe(segment);
   try {
     const script = await ensureScript(lesson, segments, segment);
-    const { voice, direction } = await narrator(lesson.user_id, segments);
+    const { voice, direction } = await narrator(lesson.user_id, segments, lesson.topic_id);
     return await describe(await saveAudio(segment, await speakAll(script, voice, direction), voice));
   } catch (err) {
     await fail(segment, err);
@@ -2342,21 +2399,14 @@ async function streamSegment(lessonId: string, position: number): Promise<Respon
 
   try {
     const script = await ensureScript(lesson, segments, segment);
-    const { voice, direction } = await narrator(lesson.user_id, segments);
-    if (script.length > CHUNK_CHARS) {
-      const audio = await speakAll(script, voice, direction);
-      await saveAudio(segment, audio, voice);
-      return new Response(audio, { headers: { "Content-Type": "audio/mpeg", "Cache-Control": "no-store" } });
-    }
-    const res = await speech(script, voice, direction);
-    const [toListener, toArchive] = res.body!.tee();
-    EdgeRuntime.waitUntil(
-      new Response(toArchive)
-        .arrayBuffer()
-        .then((buffer) => saveAudio(segment, new Uint8Array(buffer), voice))
-        .catch((err) => fail(segment, err)),
-    );
-    return new Response(toListener, { headers: { "Content-Type": "audio/mpeg", "Cache-Control": "no-store" } });
+    const { voice, direction } = await narrator(lesson.user_id, segments, lesson.topic_id);
+    // The chapter is made in full and saved, and the phone is sent to the saved file. It used to
+    // be handed the sound while it was still arriving. iOS cannot tell how long such a stream is
+    // or move about in it, and when it asked for it again part way through it was given the saved
+    // file from the start: chapters restarted mid-sentence, the clock ran out early, and an
+    // opening could fail to begin. A saved file has a known length and can be read from any point.
+    const made = await saveAudio(segment, await speakAll(script, voice, direction), voice);
+    return await saved(made ?? { audio_path: `${segment.lesson_id}/${String(segment.position).padStart(2, "0")}.mp3` });
   } catch (err) {
     await fail(segment, err);
     throw err;

@@ -85,9 +85,12 @@ export function reportHeard(lessonId: string, position: number, finished: boolea
 export type Tag = { id: string; label: string };
 export type Interests = { interests: Tag[]; suggestions: string[]; max: number };
 
-export async function listTopics(): Promise<Topic[]> {
-  if (MOCK) return mockTopics;
-  return (await call<{ topics: Topic[] }>({ action: 'topics' })).topics;
+/** Today's allowance of new stories: how many have been made, the most, and when the next one opens once used up. */
+export type Limit = { made_today: number; per_day: number; opens_at: string | null };
+
+export async function listTopics(): Promise<{ topics: Topic[]; limit?: Limit }> {
+  if (MOCK) return { topics: mockTopics };
+  return await call<{ topics: Topic[]; limit?: Limit }>({ action: 'topics' });
 }
 
 export async function startLesson(topicId: string, minutes: number): Promise<Lesson> {
@@ -176,8 +179,9 @@ export async function hideLesson(id: string): Promise<void> {
 
 /** "Not interested": takes a topic off the Listen screen for good. */
 /** An idea for a story, on offer in Explore. Nothing has been made from it yet. */
-export type Idea = { id: string; title: string; tag: string | null };
-export type Ideas = { ideas: Idea[]; tags?: string[]; in_queue?: number; queued_today: number; per_day: number; waiting: number; waiting_limit: number; preparing: number };
+/** `ready` marks a story that is already finished: picking it puts it on Listen at once. */
+export type Idea = { id: string; title: string; tag: string | null; ready?: boolean };
+export type Ideas = { ideas: Idea[]; tags?: string[]; in_queue?: number; opens_at?: string | null; queued_today: number; per_day: number; waiting: number; waiting_limit: number; preparing: number };
 
 export async function listIdeas(): Promise<Ideas> {
   if (MOCK) return { ideas: [], queued_today: 0, per_day: 10, waiting: 0, waiting_limit: 3, preparing: 0 };
@@ -185,7 +189,13 @@ export async function listIdeas(): Promise<Ideas> {
 }
 
 /** Asks for a story to be made from an idea. It starts at once if there is room, and otherwise takes its turn in the queue. */
-export async function queueIdea(id: string): Promise<{ starts: boolean; ahead: number; in_queue?: number }> {
+/** Interests with the most finished, best liked stories behind them, for someone signing up. */
+export async function popularInterests(): Promise<string[]> {
+  if (MOCK) return [];
+  return ((await call({ action: 'popular_interests' }, 'shelf')) as { interests: string[] }).interests ?? [];
+}
+
+export async function queueIdea(id: string): Promise<{ starts: boolean; ready?: boolean; used_up?: boolean; opens_at?: string | null; per_day?: number; ahead: number; in_queue?: number }> {
   if (MOCK) return { starts: true, ahead: 0 };
   return await call({ action: 'queue', topic_id: id }, 'shelf');
 }

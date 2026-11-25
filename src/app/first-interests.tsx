@@ -7,7 +7,7 @@ import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleS
 
 import { SlideToStart } from '@/components/SlideToStart';
 import { Em, Eyebrow, Screen, Wordmark } from '@/components/ui';
-import { addInterests } from '@/lib/api';
+import { addInterests, popularInterests } from '@/lib/api';
 import { useTopics } from '@/state/topics';
 import { colors, fonts } from '@/theme';
 
@@ -38,6 +38,13 @@ export default function FirstInterests() {
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [typing, setTyping] = useState(false);
+  // The interests with the most finished, best liked stories lead the suggestions. Picking one
+  // means the first stories are already made. The fixed list fills in behind them.
+  const [popular, setPopular] = useState<string[]>([]);
+  useEffect(() => {
+    popularInterests().then(setPopular).catch(() => {});
+  }, []);
+  const offered = [...popular, ...STARTERS].filter((label, i, all) => all.findIndex((l) => l.toLowerCase() === label.toLowerCase()) === i).slice(0, 16);
 
   // While the keyboard is up, everything that is not the picks and the box steps aside,
   // so what is being typed is always in view.
@@ -65,7 +72,7 @@ export default function FirstInterests() {
     const label = typed.trim().replace(/\s+/g, ' ').slice(0, 40);
     if (!label) return;
     setTyped('');
-    add(STARTERS.find((s) => s.toLowerCase() === label.toLowerCase()) ?? label);
+    add(offered.find((s) => s.toLowerCase() === label.toLowerCase()) ?? label);
   };
 
   const save = async () => {
@@ -84,7 +91,7 @@ export default function FirstInterests() {
   };
 
   const need = Math.max(0, NEEDED - picked.length);
-  const suggestions = STARTERS.filter((s) => !has(s));
+  const suggestions = offered.filter((s) => !has(s));
 
   return (
     <Screen style={{ paddingBottom: 16 }}>

@@ -5,10 +5,12 @@
 // app open or closed, so nothing here asks for one to be made or waits for one.
 import { create } from 'zustand';
 
-import { dismissTopic, listTopics, type Topic } from '@/lib/api';
+import { dismissTopic, listTopics, type Limit, type Topic } from '@/lib/api';
 
 type TopicsState = {
   topics: Topic[];
+  /** Today's allowance of new stories, so Listen can say when it is used up instead of going quiet. */
+  limit: Limit | null;
   loading: boolean;
   error: string | null;
   selected: Topic | null;
@@ -25,6 +27,7 @@ type TopicsState = {
 
 export const useTopics = create<TopicsState>((set, get) => ({
   topics: [],
+  limit: null,
   loading: false,
   error: null,
   selected: null,
@@ -34,7 +37,8 @@ export const useTopics = create<TopicsState>((set, get) => ({
     if (get().topics.length > 0) return get().refresh();
     set({ loading: true, error: null });
     try {
-      set({ topics: await listTopics(), loading: false });
+      const { topics, limit } = await listTopics();
+      set({ topics, limit: limit ?? null, loading: false });
     } catch (err) {
       set({ loading: false, error: err instanceof Error ? err.message : 'Stories could not be loaded.' });
     }
@@ -42,12 +46,12 @@ export const useTopics = create<TopicsState>((set, get) => ({
 
   refresh: async () => {
     try {
-      const next = await listTopics();
+      const { topics: next, limit } = await listTopics();
       const had = new Set(get().topics.map((t) => t.id));
       // With nothing on screen before, everything is new, so nothing is singled out.
       const arrived = had.size > 0 ? next.filter((t) => !had.has(t.id)).map((t) => t.id) : [];
       const here = new Set(next.map((t) => t.id));
-      set({ topics: next, error: null, fresh: [...arrived, ...get().fresh].filter((id) => here.has(id)) });
+      set({ topics: next, limit: limit ?? null, error: null, fresh: [...arrived, ...get().fresh].filter((id) => here.has(id)) });
     } catch {
       // What is already showing still works. The next look will try again.
     }

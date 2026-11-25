@@ -9,6 +9,7 @@ import { NowPlayingBar } from '@/components/NowPlayingBar';
 import { SwipeAway } from '@/components/SwipeAway';
 import { Em, Icon, Screen, Serif, TabBar, Wordmark } from '@/components/ui';
 import { dismissIdea, listIdeas, queueIdea, type Idea } from '@/lib/api';
+import { whenOpens } from '@/lib/when';
 import { colors, fonts, gutter } from '@/theme';
 
 // Every row is this tall, and its cover is a square of the same size, so the covers line up down the page.
@@ -30,6 +31,8 @@ export default function Explore() {
   const [banner, setBanner] = useState<Banner>(null);
   // Stories asked for and not yet begun. They are made a few at a time.
   const [inQueue, setInQueue] = useState(0);
+  // Set once today's allowance of new stories is used up: when the next opens, and how many a day.
+  const [usedUp, setUsedUp] = useState<{ opens_at: string | null; per_day: number } | null>(null);
   const hide = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // The banner slides up as it appears, so a tap is answered the moment it lands.
@@ -52,6 +55,7 @@ export default function Explore() {
         setIdeasNow(found.ideas);
         setTags(found.tags ?? []);
         setInQueue(found.in_queue ?? 0);
+        setUsedUp(found.queued_today >= found.per_day ? { opens_at: found.opens_at ?? null, per_day: found.per_day } : null);
       })
       .catch(() => setIdeas((had) => had ?? []));
   }, []);
@@ -74,12 +78,17 @@ export default function Explore() {
     settle();
     setIdeas(before.filter((i) => i.id !== idea.id));
     // Said at once, without waiting for the server. It nearly always agrees, and when it does not, the reason replaces this.
-    say({ title: 'Queued. It will be on your Listen tab.', note: 'Ready in about 5 minutes' });
+    // A finished story needs no making. It is on Listen at once.
+    const later = (opens: string | null | undefined, perDay: number) => ({ title: 'Queued for later.', note: `You\u2019ve had today\u2019s ${perDay} new stories. This one is made ${whenOpens(opens)}. Your Library has every story you\u2019ve started.` });
+    say(idea.ready ? { title: 'On your Listen tab now.', note: 'Already made, so it plays the moment you tap.' } : usedUp ? later(usedUp.opens_at, usedUp.per_day) : { title: 'Queued. It will be on your Listen tab.', note: 'Ready in about 5 minutes' });
     queueIdea(idea.id)
       .then((answer) => {
         setInQueue(answer.in_queue ?? 0);
         // With others ahead of it, say where it stands instead of promising minutes.
-        if (!answer.starts) say({ title: 'Queued. It will be on your Listen tab.', note: answer.ahead > 0 ? `Number ${answer.ahead + 1} in your queue. Stories are made a few at a time.` : 'It is next. Stories are made a few at a time.' });
+        if (answer.used_up) {
+          setUsedUp({ opens_at: answer.opens_at ?? null, per_day: answer.per_day ?? usedUp?.per_day ?? 10 });
+          say(later(answer.opens_at, answer.per_day ?? usedUp?.per_day ?? 10));
+        } else if (!answer.starts) say({ title: 'Queued. It will be on your Listen tab.', note: answer.ahead > 0 ? `Number ${answer.ahead + 1} in your queue. Stories are made a few at a time.` : 'It is next. Stories are made a few at a time.' });
       })
       .catch((err) => {
         settle();
@@ -122,6 +131,7 @@ export default function Explore() {
       </ScrollView>
       <View style={{ height: 12 }} />
 
+      {usedUp ? <Text style={styles.queue}>Today{'\u2019'}s {usedUp.per_day} new stories are made. Anything you add now is made {whenOpens(usedUp.opens_at)}. Finished stories marked Ready now still play at once.</Text> : null}
       {inQueue > 0 ? <Text style={styles.queue}>{inQueue === 1 ? '1 story in your queue.' : `${inQueue} stories in your queue.`} They arrive on Listen as they are made.</Text> : null}
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
@@ -130,9 +140,12 @@ export default function Explore() {
           <SwipeAway key={idea.id} label="Not for me" onAway={() => away(idea)} style={styles.slot}>
             <Pressable accessibilityRole="button" accessibilityLabel={`${idea.title}. Add to my stories.`} onPress={() => queue(idea)} style={({ pressed }) => [styles.row, pressed && { opacity: 0.85 }]}>
               <CoverTile id={idea.id} size={TILE} />
-              <Text style={styles.title} numberOfLines={3}>
-                {idea.title.replace(/[.\s]+$/, '')}
-              </Text>
+              <View style={styles.words}>
+                {idea.ready ? <Text style={styles.ready}>Ready now</Text> : null}
+                <Text style={styles.title} numberOfLines={idea.ready ? 2 : 3}>
+                  {idea.title.replace(/[.\s]+$/, '')}
+                </Text>
+              </View>
               <View style={styles.plus}>
                 <Icon name="plus" size={20} />
               </View>
@@ -178,7 +191,10 @@ const styles = StyleSheet.create({
   slot: { overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'stretch', backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, height: TILE },
   // The same lettering as story titles on Listen and in the Library. Headlines are kept to about fifty characters, so three lines always hold them.
-  title: { flex: 1, alignSelf: 'center', fontFamily: fonts.display, fontSize: 16, lineHeight: 18, letterSpacing: -0.4, textTransform: 'uppercase', color: colors.ink, paddingHorizontal: 14 },
+  words: { flex: 1, justifyContent: 'center', paddingHorizontal: 14 },
+  title: { fontFamily: fonts.display, fontSize: 16, lineHeight: 18, letterSpacing: -0.4, textTransform: 'uppercase', color: colors.ink },
+  // Marks a story that is already finished, so it starts at once.
+  ready: { fontFamily: fonts.bodySemi, fontSize: 11, letterSpacing: 1.2, textTransform: 'uppercase', color: colors.vermilion, marginBottom: 4 },
   plus: { width: 44, height: 44, borderRadius: 22, borderWidth: 1.5, borderColor: colors.ink, alignItems: 'center', justifyContent: 'center', marginRight: 12, alignSelf: 'center' },
   empty: { alignItems: 'center', gap: 12, paddingVertical: 48, paddingHorizontal: 12 },
   note: { fontFamily: fonts.body, fontSize: 16, lineHeight: 22, color: colors.gray, textAlign: 'center' },

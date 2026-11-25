@@ -9,6 +9,7 @@ import { NowPlayingBar } from '@/components/NowPlayingBar';
 import { SwipeAway } from '@/components/SwipeAway';
 import { Em, Icon, OutlineButton, Screen, Serif, TabBar, Wordmark } from '@/components/ui';
 import type { Topic } from '@/lib/api';
+import { whenOpens } from '@/lib/when';
 import { useTopics } from '@/state/topics';
 import { colors, fonts, gutter } from '@/theme';
 
@@ -53,7 +54,9 @@ function Card({ topic, background, lead, isNew, onPress, onAway }: { topic: Topi
 }
 
 export default function Listen() {
-  const { topics, loading, error, fresh, load, refresh, select, dismiss } = useTopics();
+  const { topics, limit, loading, error, fresh, load, refresh, select, dismiss } = useTopics();
+  // Today's new stories are all made. Said plainly, with somewhere to go, rather than an empty promise.
+  const usedUp = Boolean(limit && limit.made_today >= limit.per_day);
 
   // Read what is ready, then keep an eye out: when the app comes back to the front, and every so often while this screen is up.
   useEffect(() => {
@@ -133,7 +136,24 @@ export default function Listen() {
           </>
         ) : null}
 
-        {shown.length === 0 && !loading ? (
+        {usedUp && shown.length > 0 ? (
+          <Text style={[styles.note, { marginTop: 4 }]}>That{'\u2019'}s today{'\u2019'}s {limit!.per_day} new stories. More arrive {whenOpens(limit!.opens_at)}.</Text>
+        ) : null}
+
+        {shown.length === 0 && !loading && usedUp && !error ? (
+          <View style={styles.empty}>
+            <Serif size={30} style={{ textAlign: 'center' }}>
+              That{'\u2019'}s today{'\u2019'}s <Em>stories.</Em>
+            </Serif>
+            <Text style={styles.note}>
+              You{'\u2019'}ve had today{'\u2019'}s {limit!.per_day} new stories. More arrive {whenOpens(limit!.opens_at)}. Until then, play any story again from your Library, or pick some for later in Explore.
+            </Text>
+            <OutlineButton label="Open my Library" onPress={() => router.replace('/library')} />
+            <OutlineButton label="Pick some for later" onPress={() => router.replace('/explore')} />
+          </View>
+        ) : null}
+
+        {shown.length === 0 && !loading && !(usedUp && !error) ? (
           <View style={styles.empty}>
             <Serif size={30} style={{ textAlign: 'center' }}>
               {error ? <>Something went <Em>wrong.</Em></> : <>More on the <Em>way.</Em></>}

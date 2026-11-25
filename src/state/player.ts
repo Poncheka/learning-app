@@ -8,8 +8,8 @@
 // The two are recorded separately and the voice can shift a little between them, so the
 // sting gives the ear a clean break, the way a podcast's intro music does.
 //
-// Chapters are queued one ahead of the listener, and the server is asked to make the next
-// chapter as soon as the current one begins. That head start is what lets the next chapter
+// The server is asked to make the next chapter as soon as the current one begins, and the
+// chapter joins the queue once it is finished. That head start is what lets the next chapter
 // begin the instant this one ends. An abandoned lesson costs what was heard plus one chapter.
 import { Asset } from 'expo-asset';
 import { createAudioPlaylist, setAudioModeAsync, setIsAudioActiveAsync, type AudioPlaylist, type AudioPlaylistStatus } from 'expo-audio';
@@ -153,17 +153,28 @@ export const usePlayer = create<PlayerState>((set, get) => {
     else playlist.updateLockScreenMetadata(metadata);
   };
 
-  /** Keeps the queue one chapter ahead of the one being heard. */
-  const queueAhead = (index: number) => {
-    const { lesson, queued } = get();
+  /**
+   * Puts the next chapter in the phone's queue. iOS starts fetching a queued chapter at once, so a
+   * chapter goes in only when it is finished, or when the one playing has under half a minute
+   * left. Then the server makes it, if it still must, and sends the saved file.
+   */
+  const fill = () => {
+    const { lesson, queued, index, made, time, duration, interlude } = get();
     if (!lesson) return;
     const wanted = Math.min(lesson.segments.length, index + 2);
+    // Mock mode has no real queue. It only keeps count, so the screens behave.
+    if (MOCK) return set({ queued: Math.max(queued, wanted) });
+    if (!playlist) return;
+    const nearlyOver = !interlude && duration > 0 && duration - time < 30;
+    let added = queued;
     for (let position = queued + 1; position <= wanted; position++) {
-      playlist?.add({ uri: chapterAudioUrl(lesson.id, position) });
+      if (!made[position - 1] && !nearlyOver) break;
+      playlist.add({ uri: chapterAudioUrl(lesson.id, position) });
+      added = position;
     }
-    if (wanted > queued) set({ queued: wanted });
+    if (added > queued) set({ queued: added });
     // Once the last chapter is in the queue, the sting goes in after it, to mark the end.
-    if (!MOCK && !endQueued && !endTried && Math.max(wanted, queued) >= lesson.segments.length && playlist) {
+    if (!endQueued && !endTried && added >= lesson.segments.length) {
       // Tried once only. If it fails, the lesson still ends properly, just without the sting.
       endTried = true;
       try {
@@ -174,8 +185,14 @@ export const usePlayer = create<PlayerState>((set, get) => {
         console.log('[player] the closing sting could not be queued:', String(err));
       }
     }
-    // Start the server on the chapter after this one now, minutes before it is needed.
+  };
+
+  /** A new chapter has begun: start the server on the one after it, minutes before it is needed. */
+  const queueAhead = (index: number) => {
+    const { lesson } = get();
+    if (!lesson) return;
     if (!MOCK && index + 2 <= lesson.segments.length) prewarmChapter(lesson.id, index + 2);
+    fill();
   };
 
   const onStatus = (status: AudioPlaylistStatus) => {
@@ -197,6 +214,8 @@ export const usePlayer = create<PlayerState>((set, get) => {
     }
     const duration = Number.isFinite(status.duration) && status.duration > 0 ? status.duration : 0;
     set({ playing: status.playing, buffering: status.isBuffering, time: status.currentTime || 0, duration });
+    // Each report is a chance to queue the next chapter, now that it may be finished or due.
+    fill();
     if (phase === 'starting' && status.playing && status.currentTime > 0) set({ phase: 'playing' });
     // With no closing sting queued, the end of the last chapter is the end of the lesson.
     if (!endQueued && status.didJustFinish && index === lesson.segments.length - 1 && status.currentIndex === trackOf(index)) set({ phase: 'finished', playing: false });
@@ -247,7 +266,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
           // A chapter once made stays made, whatever a late answer says.
           set({
             made: fresh.segments.map((s, i) => now.made[i] || s.status === 'ready'),
-            lesson: { ...now.lesson, segments: now.lesson.segments.map((s, i) => (typeof fresh.segments[i]?.shape === 'string' ? { ...s, shape: fresh.segments[i].shape, seconds: fresh.segments[i].seconds } : s)) },
+            lesson: { ...now.lesson, segments: now.lesson.segments.map((s, i) => (fresh.segments[i]?.status === 'ready' ? { ...s, shape: fresh.segments[i].shape ?? s.shape, seconds: fresh.segments[i].seconds ?? s.seconds } : s)) },
           });
         })
         .catch(() => {});
@@ -433,7 +452,9 @@ type Timing = Pick<PlayerState, 'lesson' | 'index' | 'duration' | 'durations'>;
 
 /** A chapter's real length once known. Until then, its planned length stands in. */
 function chapterLength({ lesson, index, duration, durations }: Timing, i: number): number {
-  return durations[i] ?? (i === index && duration > 0 ? duration : (lesson?.segments[i].target_minutes ?? 0) * 60);
+  // A finished chapter's real length is known from the server before it is played.
+  const recorded = lesson?.segments[i]?.seconds;
+  return durations[i] ?? (i === index && duration > 0 ? duration : recorded && recorded > 0 ? recorded : (lesson?.segments[i].target_minutes ?? 0) * 60);
 }
 
 /**

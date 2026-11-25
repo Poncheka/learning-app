@@ -293,7 +293,10 @@ async function queueState() {
   const made = rows.filter((t: any) => t.status !== "proposed");
   // Waiting means being made, or finished and neither played nor swiped away.
   const waiting = made.filter((t: any) => t.status !== "ready" || (theirs(t.lessons).length === 0 && theirs(t.dismissals).length === 0));
+  const recent = made.filter((t: any) => Date.parse(t.proposed_at) > day).map((t: any) => Date.parse(t.proposed_at)).sort((a: number, b: number) => a - b);
   return {
+    // When the oldest of today's stories leaves the 24 hour window, room opens for the next one.
+    opens_at: recent.length >= QUEUE_PER_DAY ? new Date(recent[0] + 86_400_000).toISOString() : null,
     today: made.filter((t: any) => Date.parse(t.proposed_at) > day).length,
     waiting: waiting.length,
     preparing: waiting.filter((t: any) => t.status !== "ready").length,
@@ -303,6 +306,67 @@ async function queueState() {
 }
 
 /** The ideas on offer in Explore, newest first, with where the person stands against the limits. */
+// ---------- What has done well ----------
+//
+// Every finished story has a score across all listeners: likes count three times, each person who
+// heard it once, each length it is fully recorded at once (a recorded length plays again for free),
+// and each "not for me" takes two away and each swipe half of one. See topic_scores() in the database.
+type Score = { listeners: number; likes: number; passes: number; swipes: number; lengths: number; score: number };
+async function scores(): Promise<Map<string, Score>> {
+  const { data } = await service.rpc("topic_scores");
+  return new Map((data ?? []).map((r: any) => [r.topic_id, { ...r, score: Number(r.score) || 0 }]));
+}
+
+/**
+ * Interests to suggest to someone signing up: the ones with the most finished stories behind
+ * them and the most hearts on those stories, across everyone. A pick from here starts with
+ * stories that are already made, so the first ones cost nothing and play at once.
+ */
+async function popularInterests(): Promise<string[]> {
+  const [{ data }, scored] = await Promise.all([service.from("topics").select("id, tag").eq("status", "ready").not("tag", "is", null).limit(1000), scores()]);
+  const tags = new Map<string, { names: Map<string, number>; stories: number; likes: number }>();
+  for (const t of (data ?? []) as any[]) {
+    const name = String(t.tag).trim();
+    if (!name || name.toLowerCase() === "off the map") continue;
+    const key = name.toLowerCase();
+    const tag = tags.get(key) ?? { names: new Map(), stories: 0, likes: 0 };
+    tag.names.set(name, (tag.names.get(name) ?? 0) + 1);
+    tag.stories += 1;
+    tag.likes += scored.get(t.id)?.likes ?? 0;
+    tags.set(key, tag);
+  }
+  return [...tags.values()]
+    .sort((a, b) => b.stories + 2 * b.likes - (a.stories + 2 * a.likes) || b.likes - a.likes)
+    // Shown the way it is most often written. A first letter is raised, the rest left as typed.
+    .map((t) => [...t.names.entries()].sort((a, b) => b[1] - a[1])[0][0])
+    .map((name) => name.charAt(0).toUpperCase() + name.slice(1))
+    .slice(0, 12);
+}
+
+/**
+ * Finished stories in this person's interests that they have not heard, swiped away or picked
+ * already, best first. Explore leads with these: they play at once and cost nothing to make.
+ */
+async function madeForInterests(kept: Set<string>): Promise<{ id: string; title: string; tag: string | null; ready: true }[]> {
+  if (kept.size === 0) return [];
+  const [{ data }, heard, gone, picked, scored] = await Promise.all([
+    service.from("topics").select("id, title, tag, proposed_for, prepared_at").eq("status", "ready").not("tag", "is", null).order("prepared_at", { ascending: false }).limit(1000),
+    service.from("lessons").select("topic_id").eq("user_id", me()).limit(2000),
+    service.from("dismissals").select("topic_id").eq("user_id", me()).limit(2000),
+    service.from("wants").select("topic_id").eq("user_id", me()).limit(2000),
+    scores(),
+  ]);
+  const skip = new Set<string>([...(heard.data ?? []), ...(gone.data ?? []), ...(picked.data ?? [])].map((r: any) => r.topic_id));
+  return ((data ?? []) as any[])
+    // Stories made for this person are already on their Listen tab.
+    .filter((t) => !skip.has(t.id) && t.proposed_for !== me() && kept.has(String(t.tag).toLowerCase()) && String(t.title).length <= 60)
+    .filter((t) => (scored.get(t.id)?.score ?? 0) >= 0)
+    .map((t, i) => ({ t, i, score: scored.get(t.id)?.score ?? 0 }))
+    .sort((a, b) => b.score - a.score || a.i - b.i)
+    .slice(0, 20)
+    .map(({ t }) => ({ id: t.id, title: t.title, tag: t.tag ?? null, ready: true as const }));
+}
+
 async function ideas() {
   const { data } = await service.from("topics").select("id, title, tag").eq("proposed_for", me()).eq("status", "proposed").is("queued_at", null).order("proposed_at", { ascending: false }).limit(40);
   const state = await queueState();
@@ -310,11 +374,14 @@ async function ideas() {
   // they have since removed is no longer offered.
   const { data: tags } = await service.from("interests").select("label").eq("hidden", false).eq("user_id", me()).order("created_at");
   const labels = (tags ?? []).map((t: any) => String(t.label));
-  const kept = new Set(labels.map((l: string) => l.toLowerCase()));
+  const kept = new Set<string>(labels.map((l: string) => l.toLowerCase()));
+  const made = await madeForInterests(kept).catch(() => []);
   return {
     tags: labels,
-    ideas: (data ?? []).filter((t: any) => String(t.title).length <= 60).filter((t: any) => !t.tag || t.tag === "Off the map" || kept.has(String(t.tag).toLowerCase())).map((t: any) => ({ id: t.id, title: t.title, tag: t.tag ?? null })),
+    // Finished stories first, the best liked and most heard at the top. Then ideas still to be made.
+    ideas: [...made, ...(data ?? []).filter((t: any) => String(t.title).length <= 60).filter((t: any) => !t.tag || t.tag === "Off the map" || kept.has(String(t.tag).toLowerCase())).map((t: any) => ({ id: t.id, title: t.title, tag: t.tag ?? null }))],
     queued_today: state.today,
+    opens_at: state.opens_at,
     per_day: QUEUE_PER_DAY,
     waiting: state.waiting,
     waiting_limit: QUEUE_WAITING,
@@ -405,8 +472,17 @@ async function handle(req: Request): Promise<Response> {
   // ---------- Explore: ideas a person can ask for ----------
   if (body.action === "ideas") return json(await ideas());
 
+  if (body.action === "popular_interests") return json({ interests: await popularInterests() });
+
   if (body.action === "queue") {
     if (!isId(body.topic_id)) return json({ error: "Give a topic_id." }, 400);
+    // A story that is already finished needs no making. It goes straight to the front of Listen.
+    const { data: finished } = await service.from("topics").select("id, proposed_for").eq("id", body.topic_id).eq("status", "ready").maybeSingle();
+    if (finished) {
+      const { error } = await db.from("wants").upsert({ topic_id: body.topic_id }, { onConflict: "user_id,topic_id" });
+      if (error) return json({ error: "That story could not be added.", detail: error.message }, 500);
+      return json({ ok: true, starts: true, ready: true, ahead: 0, ...(await ideas()) });
+    }
     // Asking is never refused for being too keen. The queue is a list of wishes: the server makes them a few
     // at a time, and the limits apply to the making, not the asking. Only a very long queue is turned away.
     const state = await queueState();
@@ -423,11 +499,18 @@ async function handle(req: Request): Promise<Response> {
     if (!queued) return json({ error: "That idea is no longer available." }, 409);
     // It starts now if there is room among the ones being made or waiting to be heard. Otherwise it takes its turn.
     const starts = state.in_queue === 0 && state.waiting < QUEUE_WAITING && state.today < QUEUE_PER_DAY;
-    return json({ ok: true, starts, ahead: state.in_queue, ...(await ideas()) });
+    // Past today's allowance it still joins the queue, and the app says when it will be made.
+    return json({ ok: true, starts, ahead: state.in_queue, used_up: state.today >= QUEUE_PER_DAY, ...(await ideas()) });
   }
 
   if (body.action === "dismiss_idea") {
     if (!isId(body.topic_id)) return json({ error: "Give a topic_id." }, 400);
+    // A finished story is set aside for this person only. It stays available to everyone else.
+    const { data: finished } = await service.from("topics").select("id").eq("id", body.topic_id).eq("status", "ready").maybeSingle();
+    if (finished) {
+      await db.from("dismissals").upsert({ topic_id: body.topic_id }, { onConflict: "user_id,topic_id" });
+      return json({ ok: true });
+    }
     // Only an idea of this person's own that nothing has been made from yet.
     await service.from("topics").update({ status: "hidden", error: "Swiped away in Explore." }).eq("id", body.topic_id).eq("proposed_for", me()).eq("status", "proposed").is("queued_at", null);
     return json({ ok: true });
