@@ -505,6 +505,33 @@ const ELEVEN_VOICE_ID = "ANYdMtqQZTRmq10Nw496"; // Ella, casual New Zealand fema
 const ELEVEN_MODEL = "eleven_v4_turbo";
 /** A narrator's name is OpenAI's when it is on their list. Any other name is an ElevenLabs voice. */
 const isEleven = (voice: string) => !VOICES.includes(voice);
+
+/**
+ * The ElevenLabs voices on trial, kept in the settings table as eleven_voices: a list of
+ * {"name", "id", "on"}. Each new story is given one of the voices that are on, in turn, and keeps
+ * it to the end. A voice switched off still finishes the stories it began.
+ */
+type ElevenVoice = { name: string; id: string; on: boolean };
+async function elevenVoices(): Promise<ElevenVoice[]> {
+  const fallback = [{ name: (await setting("eleven_voice_name", "ella")).toLowerCase(), id: await setting("eleven_voice_id", ELEVEN_VOICE_ID), on: true }];
+  try {
+    const list = JSON.parse(await setting("eleven_voices", "[]"));
+    const voices = (Array.isArray(list) ? list : [])
+      .filter((v: any) => typeof v?.name === "string" && typeof v?.id === "string" && v.name.trim() && v.id.trim())
+      .map((v: any) => ({ name: v.name.trim().toLowerCase(), id: v.id.trim(), on: v.on !== false }))
+      .filter((v: ElevenVoice) => !VOICES.includes(v.name));
+    return voices.length > 0 ? voices : fallback;
+  } catch {
+    return fallback;
+  }
+}
+/** A steady number from a lesson's id, so every chapter of one story lands on the same voice. */
+function turnOf(id: unknown): number {
+  let sum = 0;
+  for (const c of String(id ?? "")) sum = (sum * 31 + c.charCodeAt(0)) >>> 0;
+  return sum;
+}
+
 async function voiceModel(voice: string): Promise<string> {
   return isEleven(voice) ? await setting("eleven_model", ELEVEN_MODEL) : VOICE_MODEL;
 }
@@ -523,11 +550,17 @@ async function narrator(owner?: string | null, segments?: any[]): Promise<{ voic
   // Setting voice_lock to "off" in the settings table gives each listener their own choice back.
   const openai = (await setting("voice_lock", "cedar")) === "off" ? chosen : "cedar";
   const direction = await setting("narrator_direction", VOICE_STYLE);
-  const begun = (segments ?? []).find((s) => s.status === "ready" && typeof s.voice === "string" && VOICES.includes(s.voice));
-  if (!begun && ELEVEN_KEY && (await setting("narrator_engine", "openai")) === "eleven") {
-    return { voice: (await setting("eleven_voice_name", "ella")).toLowerCase(), direction };
+  const begun = (segments ?? []).find((s) => s.status === "ready" && typeof s.voice === "string" && s.voice);
+  const fromOpenai = begun && VOICES.includes(begun.voice) ? begun.voice : null;
+  if (!fromOpenai && ELEVEN_KEY && (await setting("narrator_engine", "openai")) === "eleven") {
+    const voices = await elevenVoices();
+    // A story already begun in one of these voices keeps it. A new story takes the next voice in turn.
+    const kept = begun ? voices.find((v) => v.name === begun.voice) : null;
+    const open = voices.filter((v) => v.on);
+    const pool = open.length > 0 ? open : voices;
+    return { voice: (kept ?? pool[turnOf(segments?.[0]?.lesson_id) % pool.length]).name, direction };
   }
-  return { voice: begun?.voice ?? (VOICES.includes(openai) ? openai : VOICE), direction };
+  return { voice: fromOpenai ?? (VOICES.includes(openai) ? openai : VOICE), direction };
 }
 
 // ---------- The usage ledger ----------
@@ -775,7 +808,7 @@ function parseJson(step: string, text: string, open: string, close: string): unk
 async function speech(text: string, voice: string, direction: string): Promise<Response> {
   if (isEleven(voice)) {
     // ElevenLabs takes no written direction. The voice itself carries the manner.
-    const id = await setting("eleven_voice_id", ELEVEN_VOICE_ID);
+    const id = (await elevenVoices()).find((v) => v.name === voice)?.id ?? ELEVEN_VOICE_ID;
     const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${id}/stream?output_format=mp3_44100_128`, {
       method: "POST",
       headers: { "xi-api-key": ELEVEN_KEY, "Content-Type": "application/json" },
@@ -1938,6 +1971,8 @@ async function start(topicId: string, minutes: number) {
   // lent to this listener: nothing is written or recorded twice. Chapters are written in order, each
   // knowing what came before, so only an unbroken run from the start is lent.
   const voiceNow = (await narrator(me())).voice;
+  // With several voices on trial, a story recorded in any of them can be lent. It stays in that voice.
+  const lendable = new Set<string>(isEleven(voiceNow) ? (await elevenVoices()).map((v) => v.name) : []);
   const { data: heardBefore } = await service
     .from("lessons")
     .select("id, segments(position, title, target_minutes, script, summary, review, writer_model, source_refs, status, audio_path, voice, voice_model, duration_sec, shape)")
@@ -1951,7 +1986,7 @@ async function start(topicId: string, minutes: number) {
     if (theirs.length !== lengths.length) continue;
     const run: any[] = [];
     for (const s of theirs) {
-      if (s.position !== run.length + 1 || s.status !== "ready" || !s.audio_path || !s.script || !(run.length ? s.voice === run[0].voice : s.voice === voiceNow || s.voice === "cedar") || s.title !== chosen[run.length].title) break;
+      if (s.position !== run.length + 1 || s.status !== "ready" || !s.audio_path || !s.script || !(run.length ? s.voice === run[0].voice : s.voice === voiceNow || s.voice === "cedar" || lendable.has(s.voice)) || s.title !== chosen[run.length].title) break;
       run.push(s);
     }
     if (run.length > lent.length) lent = run;

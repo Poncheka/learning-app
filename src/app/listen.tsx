@@ -103,10 +103,14 @@ export default function Listen() {
             ))}
             {/* An odd one out keeps to its half. The other half is the way to more stories. */}
             {row.length === 1 ? (
-              <Pressable accessibilityRole="link" onPress={() => router.replace('/explore')} style={[styles.smallSlot, styles.more, styles.moreTile]}>
-                <Icon name="arrow" size={22} />
-                <Text style={styles.moreText}>Find more in Explore</Text>
-              </Pressable>
+              // The plain outer box takes exactly half the row. A box with its own border and padding
+              // is given that much extra width, which made this tile wider than the card beside it.
+              <View style={styles.smallSlot}>
+                <Pressable accessibilityRole="link" onPress={() => router.replace('/explore')} style={[styles.more, styles.moreTile, { flex: 1 }]}>
+                  <Icon name="arrow" size={22} />
+                  <Text style={styles.moreText}>Find more in Explore</Text>
+                </Pressable>
+              </View>
             ) : null}
           </View>
         ))}
