@@ -1569,8 +1569,13 @@ async function tick() {
     const { count: made } = await service.from("topics").select("id", { count: "exact", head: true }).eq("proposed_for", id).gt("proposed_at", day).in("status", ["ready", "preparing", "failed"]);
     const seat: Record<string, unknown> = { user_id: id, client: service, reserve: true, capped: (made ?? 0) >= DAILY_NEW };
     // Keep Explore stocked with ideas for this person.
-    const { count: have } = await service.from("topics").select("id", { count: "exact", head: true }).eq("proposed_for", id).eq("status", "proposed").is("queued_at", null);
-    if ((have ?? 0) < IDEAS_KEPT) await think(id, true);
+    // Only ideas for interests they still have are counted, since those are the only ones Explore
+    // shows. Counting the rest left Explore nearly empty after someone changed all their interests.
+    const { data: theirTags } = await service.from("interests").select("label").eq("user_id", id).eq("hidden", false);
+    const kept = new Set<string>((theirTags ?? []).map((t: any) => String(t.label).toLowerCase()));
+    const { data: waiting } = await service.from("topics").select("tag").eq("proposed_for", id).eq("status", "proposed").is("queued_at", null).limit(400);
+    const have = (waiting ?? []).filter((t: any) => !t.tag || t.tag === "Off the map" || kept.has(String(t.tag).toLowerCase())).length;
+    if (have < IDEAS_KEPT) await think(id, true);
     await who.run(seat, async () => {
       try {
         let step: any = await refill();
