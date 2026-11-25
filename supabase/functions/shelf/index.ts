@@ -111,7 +111,7 @@ const service = createClient(Deno.env.get("SUPABASE_URL") ?? "", SECRET_KEY, {
 // Each person's own things are read and written as that person, so the database itself
 // keeps accounts apart. Stories are the server's, and are shared. See the lesson function.
 const who = new AsyncLocalStorage<Record<string, unknown>>();
-const OWN = new Set(["interests", "signals", "lessons", "segments", "dismissals", "user_settings"]);
+const OWN = new Set(["interests", "signals", "lessons", "segments", "dismissals", "user_settings", "wants"]);
 const mine = (): any => (who.getStore() as any)?.client ?? service;
 const me = (): string | null => ((who.getStore() as any)?.user_id as string | undefined) ?? null;
 const db = {
@@ -474,12 +474,30 @@ async function handle(req: Request): Promise<Response> {
 
   if (body.action === "popular_interests") return json({ interests: await popularInterests() });
 
+  // Someone has just picked their first interests. Explore is filled at once, three batches in a row,
+  // instead of a batch a minute from the scheduled job. These are the same ideas it would make anyway,
+  // so it costs nothing extra: they only arrive sooner.
+  if (body.action === "stock") {
+    const { count } = await service.from("topics").select("id", { count: "exact", head: true }).eq("proposed_for", me()).eq("status", "proposed").is("queued_at", null);
+    const short = (count ?? 0) < 12;
+    if (short) {
+      Object.assign(who.getStore() ?? {}, { fill: true });
+      EdgeRuntime.waitUntil(
+        (async () => {
+          for (let i = 0; i < 3; i++) await propose().catch((err) => console.log("stock:", String(err)));
+        })(),
+      );
+    }
+    return json({ ok: true, stocking: short });
+  }
+
   if (body.action === "queue") {
     if (!isId(body.topic_id)) return json({ error: "Give a topic_id." }, 400);
     // A story that is already finished needs no making. It goes straight to the front of Listen.
     const { data: finished } = await service.from("topics").select("id, proposed_for").eq("id", body.topic_id).eq("status", "ready").maybeSingle();
     if (finished) {
-      const { error } = await db.from("wants").upsert({ topic_id: body.topic_id }, { onConflict: "user_id,topic_id" });
+      // Written as the person, with their id, so the database accepts it as theirs.
+      const { error } = await db.from("wants").upsert({ topic_id: body.topic_id, user_id: me() }, { onConflict: "user_id,topic_id" });
       if (error) return json({ error: "That story could not be added.", detail: error.message }, 500);
       return json({ ok: true, starts: true, ready: true, ahead: 0, ...(await ideas()) });
     }

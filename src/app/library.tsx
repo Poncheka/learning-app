@@ -14,6 +14,8 @@ import { colors, fonts, gutter } from '@/theme';
 
 export default function Library() {
   const { lessons, error, load, remove, unlike } = useLibrary();
+  // Read so the playlists are redrawn when the listener's interests arrive.
+  useLibrary((state) => state.tags);
   const [search, setSearch] = useState('');
   useEffect(load, [load]);
 
@@ -23,7 +25,10 @@ export default function Library() {
 
   // Everything and Liked come first, then one playlist per interest, the fullest first.
   const byInterest = new Map<string, number>();
-  for (const l of all) byInterest.set(shelfOf(l), (byInterest.get(shelfOf(l)) ?? 0) + 1);
+  for (const l of all) {
+    const shelf = shelfOf(l);
+    if (shelf) byInterest.set(shelf, (byInterest.get(shelf) ?? 0) + 1);
+  }
   const names = [EVERYTHING, LIKED, ...[...byInterest.entries()].sort((a, b) => b[1] - a[1]).map(([name]) => name)];
   const lists = names.map((name) => ({ name, count: all.filter((l) => inPlaylist(l, name)).length })).filter((p) => p.count > 0 || p.name === EVERYTHING);
   const art = pickBackgrounds(lists.map((p) => `playlist-${p.name}`), true);

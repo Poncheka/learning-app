@@ -2,11 +2,13 @@
 // "Play all" queue: the stories still to come after the one playing.
 import { create } from 'zustand';
 
-import { hideLesson, listLessons, type LessonSummary, sendSignal } from '@/lib/api';
+import { getInterests, hideLesson, listLessons, type LessonSummary, sendSignal } from '@/lib/api';
 import { usePlayer } from '@/state/player';
 
 type LibraryState = {
   lessons: LessonSummary[] | null;
+  /** The listener's interests as they stand now. Only these get a playlist of their own. */
+  tags: string[];
   error: string | null;
   load: () => void;
   /** Gone from the lists at once. The server is told, and keeps the audio. */
@@ -17,9 +19,14 @@ type LibraryState = {
 
 export const useLibrary = create<LibraryState>((set, get) => ({
   lessons: null,
+  tags: [],
   error: null,
   load: () => {
     set({ error: null });
+    // Interests are read alongside, so a playlist is made only for the ones still chosen.
+    getInterests()
+      .then((found) => set({ tags: found.interests.map((t) => t.label) }))
+      .catch(() => {});
     listLessons()
       .then((lessons) => set({ lessons }))
       .catch((err) => set({ error: err instanceof Error ? err.message : 'Your stories could not be loaded.' }));
@@ -38,8 +45,16 @@ export const EVERYTHING = 'Everything';
 export const LIKED = 'Liked';
 export const OFF_THE_MAP = 'Off the map';
 
-/** Which playlist a story sits in besides Everything and Liked: its interest, or Off the map. */
-export const shelfOf = (lesson: LessonSummary) => (lesson.tag && lesson.tag !== OFF_THE_MAP ? lesson.tag : OFF_THE_MAP);
+/**
+ * Which playlist a story sits in besides Everything and Liked: the interest it came from, if that is
+ * one the listener still has. A story from anywhere else, a wildcard or a removed interest, is only
+ * in Everything.
+ */
+export const shelfOf = (lesson: LessonSummary): string | null => {
+  const tag = lesson.tag?.trim();
+  if (!tag || tag === OFF_THE_MAP) return null;
+  return useLibrary.getState().tags.find((t) => t.toLowerCase() === tag.toLowerCase()) ?? null;
+};
 
 export const inPlaylist = (lesson: LessonSummary, name: string) => (name === EVERYTHING ? true : name === LIKED ? Boolean(lesson.liked) : shelfOf(lesson) === name);
 

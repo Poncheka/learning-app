@@ -1,9 +1,10 @@
 // 1. Open. The first thing you see: the name, the line, and a slide to start.
-import { Redirect, router } from 'expo-router';
+import { Redirect } from 'expo-router';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { SlideToStart } from '@/components/SlideToStart';
 import { Icon, Screen } from '@/components/ui';
+import { arrive } from '@/lib/arrive';
 import { useSession } from '@/state/session';
 import { colors, fonts } from '@/theme';
 
@@ -23,7 +24,8 @@ export default function Open() {
         pliny<Text style={{ color: colors.vermilion }}>.</Text>
       </Text>
       <Text style={styles.line}>get lost in{'\n'}something</Text>
-      <SlideToStart onDone={() => router.replace('/listen')} />
+      {/* Someone who left before picking interests is taken back to pick them. Interests cannot be skipped. */}
+      <SlideToStart onDone={() => arrive()} />
     </Screen>
   );
 }

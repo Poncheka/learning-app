@@ -477,7 +477,7 @@ const service = createClient(Deno.env.get("SUPABASE_URL") ?? "", SECRET_KEY, {
 // Each person's own things are read and written as that person, so the database itself
 // keeps one account from ever seeing another's: interests, likes, history, chapters, swipes
 // and their narrator. Stories and everything else are the server's, and are shared.
-const OWN = new Set(["interests", "signals", "lessons", "segments", "dismissals", "user_settings"]);
+const OWN = new Set(["interests", "signals", "lessons", "segments", "dismissals", "user_settings", "wants"]);
 /** The database as the signed-in person sees it, or as the server sees it when nobody is signed in. */
 const mine = (): any => (who.getStore() as any)?.client ?? service;
 const me = (): string | null => ((who.getStore() as any)?.user_id as string | undefined) ?? null;
@@ -1546,12 +1546,31 @@ async function unplayedTopics(): Promise<any[]> {
   // How each story has done with everyone, and how many lengths it is already recorded at.
   const { data: scored } = await service.rpc("topic_scores");
   const score = new Map<string, { score: number; lengths: number }>((scored ?? []).map((r: any) => [r.topic_id, { score: Number(r.score) || 0, lengths: Number(r.lengths) || 0 }]));
-  const recorded = (t: any) => t.starter || (score.get(t.id)?.lengths ?? 0) > 0;
+  // Someone new hears only stories read by an ElevenLabs voice, which sound best. For them, a story
+  // counts as recorded only if its opening is in one of those voices.
+  const eleven = new Set<string>();
+  if (fresh) {
+    const { data: openings } = await service.from("segments").select("voice, lessons!inner(topic_id)").eq("position", 1).eq("status", "ready").not("voice", "in", `(${VOICES.join(",")})`).limit(2000);
+    for (const s of (openings ?? []) as any[]) if (s.lessons?.topic_id) eleven.add(s.lessons.topic_id);
+    for (const t of open) if (t.opening_voice && !VOICES.includes(t.opening_voice)) eleven.add(t.id);
+  }
+  const recorded = (t: any) => (fresh ? eleven.has(t.id) : t.starter || (score.get(t.id)?.lengths ?? 0) > 0);
   const theirTag = (t: any) => labels.has(String(t.tag ?? "").toLowerCase());
   // Someone new is shown stories that are already recorded first, the best liked in their own
   // interests ahead of the rest: they start at once, cost nothing, and others enjoyed them.
   const rank = (t: any) =>
-    t.proposed_for === me() || picked.has(t.id) ? 0 : fresh && recorded(t) && theirTag(t) ? 0.5 : fresh && recorded(t) ? 0.75 : theirTag(t) ? 1 : 2;
+    t.proposed_for === me() || picked.has(t.id)
+      ? 0
+      : // The starter stories, once recorded in an ElevenLabs voice, lead a newcomer's first page.
+        fresh && t.starter && recorded(t)
+        ? 0.4
+        : fresh && recorded(t) && theirTag(t)
+          ? 0.5
+          : fresh && recorded(t)
+            ? 0.75
+            : theirTag(t)
+              ? 1
+              : 2;
   return open
     .map((t: any, i: number) => ({ t: { ...t, _rank: rank(t) }, i, s: score.get(t.id)?.score ?? 0 }))
     // Their own stories stay newest first. Everywhere else the better liked and more heard come first.
@@ -2024,6 +2043,10 @@ async function start(topicId: string, minutes: number) {
   const voiceNow = (await narrator(me(), undefined, topic.id)).voice;
   // With several voices on trial, a story recorded in any of them can be lent. It stays in that voice.
   const lendable = new Set<string>(isEleven(voiceNow) ? (await elevenVoices()).map((v) => v.name) : []);
+  // Someone new hears only ElevenLabs voices: a recording in an OpenAI voice is not lent to them,
+  // and their story is recorded afresh instead. Everyone else may still be lent the older recordings.
+  const { count: heardSoFar } = await db.from("lessons").select("id", { count: "exact", head: true }).eq("user_id", me());
+  const newcomer = isEleven(voiceNow) && (heardSoFar ?? 0) < 3;
   const { data: heardBefore } = await service
     .from("lessons")
     .select("id, segments(position, title, target_minutes, script, summary, review, writer_model, source_refs, status, audio_path, voice, voice_model, duration_sec, shape)")
@@ -2037,7 +2060,7 @@ async function start(topicId: string, minutes: number) {
     if (theirs.length !== lengths.length) continue;
     const run: any[] = [];
     for (const s of theirs) {
-      if (s.position !== run.length + 1 || s.status !== "ready" || !s.audio_path || !s.script || !(run.length ? s.voice === run[0].voice : s.voice === voiceNow || s.voice === "cedar" || lendable.has(s.voice)) || s.title !== chosen[run.length].title) break;
+      if (s.position !== run.length + 1 || s.status !== "ready" || !s.audio_path || !s.script || !(run.length ? s.voice === run[0].voice : s.voice === voiceNow || (!newcomer && s.voice === "cedar") || lendable.has(s.voice)) || s.title !== chosen[run.length].title) break;
       run.push(s);
     }
     if (run.length > lent.length) lent = run;
@@ -2045,18 +2068,18 @@ async function start(topicId: string, minutes: number) {
 
   // The opening is the same whatever length is chosen. If it has been voiced before, for a
   // lesson of another length, that recording is used again.
-  const { data: voicedBefore } = await db
+  let openingAsk = db
     .from("segments")
     .select("audio_path, voice, voice_model, shape, duration_sec, lessons!inner(topic_id)")
     .eq("position", 1)
     .eq("status", "ready")
-    .eq("lessons.topic_id", topic.id)
-    .limit(1)
-    .maybeSingle();
+    .eq("lessons.topic_id", topic.id);
+  if (newcomer) openingAsk = openingAsk.in("voice", [...lendable]);
+  const { data: voicedBefore } = await openingAsk.limit(1).maybeSingle();
   // Failing that, the opening may have been recorded ahead, while the story sat on the Listen tab.
   const voiced: any =
     voicedBefore ??
-    (topic.opening_audio_path
+    (topic.opening_audio_path && !(newcomer && !lendable.has(topic.opening_voice))
       ? { audio_path: topic.opening_audio_path, voice: topic.opening_voice, voice_model: topic.opening_voice_model, shape: topic.opening_shape, duration_sec: topic.opening_seconds }
       : null);
 

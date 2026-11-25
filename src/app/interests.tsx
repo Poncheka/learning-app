@@ -1,7 +1,7 @@
 // 10. Interests. The few tags Pliny draws its topics from.
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { NowPlayingBar } from '@/components/NowPlayingBar';
 import { Em, Eyebrow, Icon, OutlineButton, RoundButton, Screen, Serif, TabBar, Wordmark } from '@/components/ui';
@@ -96,7 +96,10 @@ export default function Interests() {
             <TextInput
               value={draft}
               onChangeText={setDraft}
-              onSubmitEditing={() => add(draft)}
+              onSubmitEditing={() => {
+                add(draft);
+                Keyboard.dismiss();
+              }}
               placeholder="Add a tag"
               placeholderTextColor={colors.gray}
               returnKeyType="done"

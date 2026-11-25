@@ -7,7 +7,7 @@ import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleS
 
 import { SlideToStart } from '@/components/SlideToStart';
 import { Em, Eyebrow, Screen, Wordmark } from '@/components/ui';
-import { addInterests, popularInterests } from '@/lib/api';
+import { addInterests, popularInterests, stockExplore } from '@/lib/api';
 import { useTopics } from '@/state/topics';
 import { colors, fonts } from '@/theme';
 
@@ -72,6 +72,8 @@ export default function FirstInterests() {
     const label = typed.trim().replace(/\s+/g, ' ').slice(0, 40);
     if (!label) return;
     setTyped('');
+    // The tag is in. The keyboard goes away, so the picks and the Continue slider are in view.
+    Keyboard.dismiss();
     add(offered.find((s) => s.toLowerCase() === label.toLowerCase()) ?? label);
   };
 
@@ -85,7 +87,8 @@ export default function FirstInterests() {
       setError(err instanceof Error ? err.message : 'Those did not save. Try again.');
       return false;
     }
-    // Stories are thought up from these, so that starts right away.
+    // Stories and Explore ideas are thought up from these, so that starts right away.
+    stockExplore();
     useTopics.getState().load();
     router.replace('/listen');
   };
@@ -131,7 +134,6 @@ export default function FirstInterests() {
               returnKeyType="done"
               autoCorrect
               onSubmitEditing={addOwn}
-              blurOnSubmit={false}
               maxLength={40}
               style={styles.input}
             />
@@ -164,9 +166,6 @@ export default function FirstInterests() {
                 <Text style={styles.waitText}>{saving ? 'Saving' : `Pick ${need} more`}</Text>
               </View>
             )}
-            <Pressable onPress={() => router.replace('/listen')} hitSlop={8} accessibilityRole="button" style={styles.skip}>
-              <Text style={styles.skipText}>Skip for now</Text>
-            </Pressable>
           </>
         )}
       </KeyboardAvoidingView>
@@ -191,6 +190,4 @@ const styles = StyleSheet.create({
   error: { fontFamily: fonts.bodySemi, fontSize: 13, lineHeight: 19, color: colors.vermilion, marginTop: 10 },
   wait: { height: 72, borderRadius: 36, backgroundColor: colors.line, alignItems: 'center', justifyContent: 'center' },
   waitText: { fontFamily: fonts.bodySemi, fontSize: 20, color: colors.gray },
-  skip: { height: 52, alignItems: 'center', justifyContent: 'center' },
-  skipText: { fontFamily: fonts.bodySemi, fontSize: 15, color: colors.gray },
 });

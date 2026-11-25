@@ -189,6 +189,12 @@ export async function listIdeas(): Promise<Ideas> {
 }
 
 /** Asks for a story to be made from an idea. It starts at once if there is room, and otherwise takes its turn in the queue. */
+/** Fills a new person's Explore with ideas right away, rather than a few a minute. */
+export function stockExplore(): void {
+  if (MOCK) return;
+  call({ action: 'stock' }, 'shelf').catch(() => {});
+}
+
 /** Interests with the most finished, best liked stories behind them, for someone signing up. */
 export async function popularInterests(): Promise<string[]> {
   if (MOCK) return [];

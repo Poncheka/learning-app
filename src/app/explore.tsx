@@ -60,6 +60,14 @@ export default function Explore() {
       .catch(() => setIdeas((had) => had ?? []));
   }, []);
 
+  // Just after signing up Explore starts empty while the first ideas are made. Until some arrive, look every few seconds.
+  const empty = ideas !== null && ideas.length === 0;
+  useEffect(() => {
+    if (!empty) return;
+    const quick = setInterval(() => AppState.currentState === 'active' && look(), 5000);
+    return () => clearInterval(quick);
+  }, [empty, look]);
+
   // Ideas are thought up by the server on its own. This only reads them, now and every so often.
   useEffect(() => {
     look();
@@ -154,10 +162,11 @@ export default function Explore() {
         ))}
         {ideas !== null && shown.length === 0 ? (
           <View style={styles.empty}>
+            {!chosen && (ideas ?? []).length === 0 ? <ActivityIndicator color={colors.ink} size="large" style={{ marginBottom: 6 }} /> : null}
             <Serif size={28} style={{ textAlign: 'center' }}>
-              More ideas <Em>soon.</Em>
+              {!chosen && (ideas ?? []).length === 0 ? <>Making your <Em>ideas.</Em></> : <>More ideas <Em>soon.</Em></>}
             </Serif>
-            <Text style={styles.note}>{chosen ? 'Nothing under that interest yet. New ideas for it arrive within a few minutes.' : 'Pliny is thinking up new ideas from your interests. They appear here within a few minutes.'}</Text>
+            <Text style={styles.note}>{chosen ? 'Nothing under that interest yet. New ideas for it arrive within a few minutes.' : 'Pliny is creating story ideas from your interests right now. The first ones appear here in about a minute.'}</Text>
           </View>
         ) : null}
       </ScrollView>

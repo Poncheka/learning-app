@@ -9,6 +9,7 @@ import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 
 import { arrive } from '@/lib/arrive';
+import { watchForUpdates } from '@/lib/freshen';
 import { hasNext } from '@/state/library';
 import { usePlayer } from '@/state/player';
 import { useSession } from '@/state/session';
@@ -19,6 +20,9 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 
 // The screens a signed-out person may see. Anything else sends them to sign in.
 const OPEN_DOORS = ['/welcome', '/check-email', '/link-expired', '/auth'];
+
+// A new version is switched to as soon as the app opens, rather than on the open after that.
+watchForUpdates();
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
