@@ -10,12 +10,13 @@ const ORIGIN = 'https://itspliny.com';
 const template = readFileSync(join(out, 's', 'template.html'), 'utf8');
 
 const escape = (text) => String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-const page = ({ title, description, url, image }) =>
+const page = ({ title, description, url, image, art = '' }) =>
   template
     .replaceAll('{{TITLE}}', escape(title))
     .replaceAll('{{DESCRIPTION}}', escape(description))
     .replaceAll('{{URL}}', escape(url))
-    .replaceAll('{{IMAGE}}', escape(image));
+    .replaceAll('{{IMAGE}}', escape(image))
+    .replaceAll('{{ART}}', escape(art));
 
 // Any address under /s/ that has no page yet, such as a story shared a minute ago, falls back to
 // GitHub's 404 page, which is this same page without a preview. It plays the story all the same.
@@ -29,7 +30,7 @@ for (const s of stories) {
   mkdirSync(join(out, 's', s.slug), { recursive: true });
   writeFileSync(
     join(out, 's', s.slug, 'index.html'),
-    page({ title: s.title, description: s.hook || 'A true story from Pliny.', url: `${ORIGIN}/s/${s.slug}`, image: `${ORIGIN}/s/og/${s.art}.png` }),
+    page({ title: s.title, description: s.hook || 'A true story from Pliny.', url: `${ORIGIN}/s/${s.slug}`, image: `${ORIGIN}/s/og/${s.art}.png`, art: String(s.art) }),
   );
 }
 console.log(`Wrote ${stories.length} story pages.`);

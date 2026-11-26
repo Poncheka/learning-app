@@ -341,8 +341,23 @@ export async function setAvatar(localUri: string): Promise<Profile> {
 
 export type Shared = { url: string; code: string; show_name: boolean; finishing: boolean; art: number };
 
-/** A public link to a story on itspliny.com. A story not finished yet is finished so friends can hear all of it. */
-export async function shareLesson(lessonId: string, showName = true): Promise<Shared> {
+/**
+ * A public link to a story on itspliny.com. Asked for as soon as a story is open, so the share sheet
+ * shows it at once. `sent` marks it passed on, which is when a story not finished yet starts being finished.
+ */
+export async function shareLesson(lessonId: string, showName = true, sent = false): Promise<Shared> {
   if (MOCK) return { url: 'https://itspliny.com/s/a-story?r=abc234', code: 'abc234', show_name: showName, finishing: false, art: 6 };
-  return await call<Shared>({ action: 'share', lesson_id: lessonId, show_name: showName }, 'shelf');
+  return await call<Shared>({ action: 'share', lesson_id: lessonId, show_name: showName, sent }, 'shelf');
+}
+
+const ready = new Map<string, Promise<Shared>>();
+/** Gets a story's link ready in the background. Free: nothing is made until the link is sent. */
+export function prepareShare(lessonId: string): Promise<Shared> {
+  let asked = ready.get(lessonId);
+  if (!asked) {
+    asked = shareLesson(lessonId);
+    asked.catch(() => ready.delete(lessonId));
+    ready.set(lessonId, asked);
+  }
+  return asked;
 }

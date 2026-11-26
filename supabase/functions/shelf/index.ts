@@ -11,7 +11,9 @@
 // POST { action: "profile" }                      the listener's first name and picture.
 // POST { action: "set_profile", first_name?, avatar_path? }   change either.
 // POST { action: "avatar_upload" }                a one-time address to upload a new picture to.
-// POST { action: "share", lesson_id, show_name? }  a public link to a story, finished first if need be.
+// POST { action: "share", lesson_id, show_name?, sent? }  a public link to a story. Asked for ahead, so the
+//                                                  share sheet opens at once; sent: true when it is passed on,
+//                                                  which is when a story not finished yet starts being finished.
 //
 // The learning loop lives in "propose". It reads what the listener loved, what they turned
 // down and what they swiped away, and asks for topics that lean toward the first and away
@@ -612,15 +614,16 @@ async function handle(req: Request): Promise<Response> {
     const { data: lesson } = await db.from("lessons").select("id, topic_id, user_id, segments(status)").eq("id", body.lesson_id).maybeSingle();
     if (!lesson || lesson.user_id !== me()) return json({ error: "That story could not be found." }, 404);
     const showName = body.show_name !== false;
+    const sent = body.sent === true;
     const slug = await storySlug(lesson.topic_id);
     if (!slug) return json({ error: "That story cannot be shared yet." }, 400);
     // One link per story per person. Sharing it again keeps the same link, with the name choice updated.
     const { data: had } = await service.from("shares").select("code").eq("lesson_id", lesson.id).eq("user_id", me()).maybeSingle();
     let code = had?.code as string | undefined;
-    if (code) await service.from("shares").update({ show_name: showName }).eq("code", code);
+    if (code) await service.from("shares").update({ show_name: showName, ...(sent ? { sent_at: new Date().toISOString() } : {}) }).eq("code", code);
     for (let tries = 0; !code && tries < 5; tries++) {
       const fresh = shareCode();
-      const { error } = await service.from("shares").insert({ code: fresh, lesson_id: lesson.id, topic_id: lesson.topic_id, user_id: me(), show_name: showName });
+      const { error } = await service.from("shares").insert({ code: fresh, lesson_id: lesson.id, topic_id: lesson.topic_id, user_id: me(), show_name: showName, sent_at: sent ? new Date().toISOString() : null });
       if (!error) code = fresh;
     }
     if (!code) return json({ error: "The link could not be made. Try again." }, 500);

@@ -168,7 +168,7 @@
 
   $('start').addEventListener('click', function () {
     show('player');
-    window.scrollTo(0, 0);
+    $('player').scrollTop = 0;
     wanted = true;
     playChapter(0);
   });
@@ -193,13 +193,28 @@
     if (story.sharer) $('joined-note').textContent = 'You came through ' + story.sharer + ', so you’re ahead of the general list. ' + story.sharer + ' moves up too.';
   }
 
+  // Draws the eye to an email box: a short shake and a red ring, then focus so the keyboard opens.
+  function nudge(input) {
+    input.classList.remove('nudge');
+    void input.offsetWidth;
+    input.classList.add('nudge');
+    setTimeout(function () { input.classList.remove('nudge'); }, 1400);
+    input.focus();
+  }
+  // "Join waitlist" at the top points at the email box at the foot of the screen, which is always
+  // in view, so following the link would do nothing.
+  $('to-join').addEventListener('click', function (e) {
+    e.preventDefault();
+    nudge($('dock-email'));
+  });
+
   function hook(form, source, withInterests) {
     var error = form.querySelector('.error'), button = form.querySelector('button[type=submit]');
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       var email = form.elements.email.value.trim();
       var fail = function (text) { error.textContent = text; error.hidden = false; };
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return fail('Enter a valid email address.');
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) { nudge(form.elements.email); return fail(email ? 'Enter a valid email address.' : 'Add your email to join.'); }
       error.hidden = true; button.disabled = true;
       fetch(API, {
         method: 'POST',
@@ -236,6 +251,10 @@
   });
 
   // ---------- Start ----------
+
+  // The cover is drawn straight away from the page itself, before the story has loaded.
+  var early = parseInt(document.body.getAttribute('data-art') || '', 10);
+  if (!isNaN(early)) { paintArt($('cover'), early); paintArt($('thumb'), early); }
 
   if (!slug) return missing();
   load().then(function (r) {

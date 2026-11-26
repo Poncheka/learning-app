@@ -6,6 +6,7 @@ import { ActivityIndicator, PanResponder, Pressable, StyleSheet, Text, View, use
 import { PlayingArt } from '@/components/art';
 import { colorFor } from '@/components/covers';
 import { ShareSheet } from '@/components/ShareSheet';
+import { prepareShare } from '@/lib/api';
 import { Display, Eyebrow, Icon, OutlineButton, RoundButton, Screen, SkipIcon, Wordmark } from '@/components/ui';
 import { clock, lessonProgress, reachable, usePlayer } from '@/state/player';
 import { colors, fonts, gutter } from '@/theme';
@@ -28,6 +29,10 @@ export default function Playing() {
   // moves there, and the bar holds its place for a moment until the player catches up.
   const [drag, setDrag] = useState<number | null>(null);
   const [sharing, setSharing] = useState(false);
+  // The share link is got ready now, so the share sheet has it the moment it opens.
+  useEffect(() => {
+    if (lesson?.id) prepareShare(lesson.id).catch(() => {});
+  }, [lesson?.id]);
   const width = useWindowDimensions().width - gutter * 2;
   const live = useRef({ width, total, scrubTo });
   live.current = { width, total, scrubTo };

@@ -44,57 +44,96 @@ async function sample(not: string | null) {
   return json({ error: "No sample is available right now." }, 503);
 }
 
+/**
+ * Topics someone has actually passed on. A link is made ahead, as soon as a story is opened, so
+ * having a link is not enough: only a story that was sent is public.
+ */
+async function sentTopics(): Promise<Set<string>> {
+  const { data } = await db.from("shares").select("topic_id").not("sent_at", "is", null).limit(20000);
+  return new Set((data ?? []).map((s: any) => s.topic_id as string));
+}
+
 /** Every story that has been shared: enough to write its page and its link preview. */
 async function stories() {
-  const { data } = await db.from("topics").select("id, slug, title, hook, tag").not("slug", "is", null).eq("status", "ready").limit(5000);
+  const [{ data }, sent] = await Promise.all([
+    db.from("topics").select("id, slug, title, hook, tag").not("slug", "is", null).eq("status", "ready").limit(5000),
+    sentTopics(),
+  ]);
   return json({
-    stories: (data ?? []).map((t: any) => ({ slug: t.slug, title: t.title, hook: t.hook ?? "", tag: t.tag && t.tag !== "Off the map" ? t.tag : null, art: artOf(t.id) })),
+    stories: (data ?? []).filter((t: any) => sent.has(t.id)).map((t: any) => ({ slug: t.slug, title: t.title, hook: t.hook ?? "", tag: t.tag && t.tag !== "Off the map" ? t.tag : null, art: artOf(t.id) })),
   });
 }
 
 /**
  * One shared story, ready to play. With a share code, the lesson that was shared and the first name
  * of whoever sent it, if they chose to show it. Without one, the most complete recording there is.
+ * Lookups that do not depend on each other run at the same time, and every chapter's audio link is
+ * signed in one request, so the page can start playing sooner.
  */
 async function story(slug: string, code: string | null) {
   if (!/^[a-z0-9-]{1,90}$/.test(slug)) return json({ error: "No such story." }, 404);
-  const { data: topic } = await db.from("topics").select("id, slug, title, hook, tag, sources").eq("slug", slug).maybeSingle();
+  const goodCode = code && /^[a-z0-9]{4,12}$/.test(code) ? code : null;
+  const [{ data: topic }, shareRes] = await Promise.all([
+    db.from("topics").select("id, slug, title, hook, tag, sources").eq("slug", slug).maybeSingle(),
+    goodCode ? db.from("shares").select("code, lesson_id, topic_id, user_id, show_name, opened").eq("code", goodCode).maybeSingle() : Promise.resolve({ data: null }),
+  ]);
   if (!topic) return json({ error: "No such story." }, 404);
 
   let lessonId: string | null = null;
-  let sharer: string | null = null;
-  if (code && /^[a-z0-9]{4,12}$/.test(code)) {
-    const { data: share } = await db.from("shares").select("code, lesson_id, topic_id, user_id, show_name, opened").eq("code", code).maybeSingle();
-    if (share && share.topic_id === topic.id) {
-      lessonId = share.lesson_id;
-      if (share.show_name) {
-        const { data: profile } = await db.from("profiles").select("first_name").eq("user_id", share.user_id).maybeSingle();
-        sharer = profile?.first_name ?? null;
-      }
-      await db.from("shares").update({ opened: (share.opened ?? 0) + 1 }).eq("code", share.code);
+  let sharerAsk: Promise<{ data: any }> | null = null;
+  const share: any = shareRes.data;
+  if (share && share.topic_id === topic.id) {
+    lessonId = share.lesson_id;
+    if (share.show_name) sharerAsk = db.from("profiles").select("first_name").eq("user_id", share.user_id).maybeSingle() as any;
+    // Counting the open does not hold up the answer.
+    const count = db.from("shares").update({ opened: (share.opened ?? 0) + 1 }).eq("code", share.code).then(() => {});
+    try {
+      EdgeRuntime.waitUntil(count);
+    } catch {
+      /* counted anyway, just not waited for */
     }
   }
+
   if (!lessonId) {
+    // Without a working code, only a story someone has sent can be played.
+    const { count } = await db.from("shares").select("code", { count: "exact", head: true }).eq("topic_id", topic.id).not("sent_at", "is", null);
+    if (!count) return json({ error: "No such story." }, 404);
+  }
+
+  let segments: any[] = [];
+  if (lessonId) {
+    const { data } = await db.from("segments").select("position, title, status, audio_path, voice, duration_sec, target_minutes").eq("lesson_id", lessonId).order("position");
+    segments = data ?? [];
+  } else {
     // No code, or one for another story: the recording with the most finished chapters.
-    const { data: lessons } = await db.from("lessons").select("id, segments(status, audio_path, voice)").eq("topic_id", topic.id).limit(50);
+    const { data: lessons } = await db
+      .from("lessons")
+      .select("id, segments(position, title, status, audio_path, voice, duration_sec, target_minutes)")
+      .eq("topic_id", topic.id)
+      .limit(50);
     const best = (lessons ?? [])
-      .map((l: any) => ({ id: l.id, ready: (l.segments ?? []).filter(playable).length, all: (l.segments ?? []).length }))
+      .map((l: any) => ({ id: l.id, segs: (l.segments ?? []) as any[], ready: (l.segments ?? []).filter(playable).length, all: (l.segments ?? []).length }))
       .filter((l) => l.ready > 0)
       .sort((a, b) => Number(b.ready === b.all) - Number(a.ready === a.all) || b.ready - a.ready)[0];
-    lessonId = best?.id ?? null;
+    if (best) {
+      lessonId = best.id;
+      segments = [...best.segs].sort((a, b) => a.position - b.position);
+    }
   }
   if (!lessonId) return json({ error: "This story is not ready to play yet." }, 404);
 
-  const { data: segments } = await db.from("segments").select("position, title, status, audio_path, voice, duration_sec, target_minutes").eq("lesson_id", lessonId).order("position");
-  const chapters = [];
-  for (const s of (segments ?? []) as any[]) {
-    let url: string | null = null;
-    if (playable(s)) {
-      const { data: signed } = await db.storage.from(BUCKET).createSignedUrl(s.audio_path, 6 * 3600);
-      url = signed?.signedUrl ?? null;
-    }
-    chapters.push({ title: s.title, url, seconds: Number(s.duration_sec) || Math.round((Number(s.target_minutes) || 3) * 60), ready: Boolean(url) });
-  }
+  const paths = segments.filter(playable).map((s) => s.audio_path as string);
+  const [signedRes, sharerRes] = await Promise.all([
+    paths.length ? db.storage.from(BUCKET).createSignedUrls(paths, 6 * 3600) : Promise.resolve({ data: [] as any[] }),
+    sharerAsk ?? Promise.resolve({ data: null }),
+  ]);
+  const urlFor = new Map<string, string>();
+  for (const x of (signedRes.data ?? []) as any[]) if (x?.path && x?.signedUrl) urlFor.set(x.path, x.signedUrl);
+  const chapters = segments.map((s) => {
+    const url = playable(s) ? urlFor.get(s.audio_path) ?? null : null;
+    return { title: s.title, url, seconds: Number(s.duration_sec) || Math.round((Number(s.target_minutes) || 3) * 60), ready: Boolean(url) };
+  });
+  const sharer: string | null = (sharerRes as any)?.data?.first_name ?? null;
   const minutes = Math.max(1, Math.round(chapters.reduce((sum, c) => sum + c.seconds, 0) / 60));
   const sources = (Array.isArray(topic.sources) ? topic.sources : [])
     .filter((s: any) => s && typeof s.title === "string" && typeof s.url === "string" && /^https:\/\//.test(s.url))

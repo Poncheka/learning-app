@@ -1764,7 +1764,7 @@ const QUEUE_PER_DAY = 10;
  */
 async function finishShared(): Promise<boolean> {
   const week = new Date(Date.now() - 7 * 86_400_000).toISOString();
-  const { data } = await service.from("shares").select("lesson_id, lessons!inner(id, user_id, topic_id, segments(*))").gt("created_at", week).limit(100);
+  const { data } = await service.from("shares").select("lesson_id, lessons!inner(id, user_id, topic_id, segments(*))").gt("sent_at", week).limit(100);
   for (const share of (data ?? []) as any[]) {
     const lesson = share.lessons;
     const segments = [...(lesson?.segments ?? [])].sort((a: any, b: any) => a.position - b.position);

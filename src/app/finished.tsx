@@ -1,11 +1,11 @@
 // 8. Finished. The lesson is over: say how it was, then pick another.
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
 import { ShareSheet } from '@/components/ShareSheet';
 import { BigButton, Em, Eyebrow, Icon, OutlineButton, RoundButton, Screen, Serif, Wordmark } from '@/components/ui';
-import { sendSignal } from '@/lib/api';
+import { prepareShare, sendSignal } from '@/lib/api';
 import { usePlayer } from '@/state/player';
 import { colors, fonts } from '@/theme';
 
@@ -15,6 +15,10 @@ export default function Finished() {
   // when Pliny chooses what to offer next.
   const [verdict, setVerdict] = useState<'loved' | 'no' | null>(null);
   const [sharing, setSharing] = useState(false);
+  // The share link is got ready now, so the share sheet has it the moment it opens.
+  useEffect(() => {
+    if (lesson?.id) prepareShare(lesson.id).catch(() => {});
+  }, [lesson?.id]);
   const leave = (to: '/listen') => {
     stop();
     router.replace(to);
