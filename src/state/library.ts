@@ -74,9 +74,9 @@ export function playAll(list: LessonSummary[]) {
 }
 
 /** Choosing a single story to play ends any "Play all" under way. */
-export function playOne(lesson: LessonSummary) {
+export function playOne(lesson: LessonSummary, fromStart = false) {
   upNext = [];
-  usePlayer.getState().resume(lesson);
+  usePlayer.getState().resume(lesson, fromStart);
 }
 
 // When a story ends and another is lined up, it starts once the closing sound has played out.

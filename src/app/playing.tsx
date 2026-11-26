@@ -5,6 +5,7 @@ import { ActivityIndicator, PanResponder, Pressable, StyleSheet, Text, View, use
 
 import { PlayingArt } from '@/components/art';
 import { colorFor } from '@/components/covers';
+import { ShareSheet } from '@/components/ShareSheet';
 import { Display, Eyebrow, Icon, OutlineButton, RoundButton, Screen, SkipIcon, Wordmark } from '@/components/ui';
 import { clock, lessonProgress, reachable, usePlayer } from '@/state/player';
 import { colors, fonts, gutter } from '@/theme';
@@ -26,6 +27,7 @@ export default function Playing() {
   // Dragging the bar. While a finger is down the bar follows it. On letting go the audio
   // moves there, and the bar holds its place for a moment until the player catches up.
   const [drag, setDrag] = useState<number | null>(null);
+  const [sharing, setSharing] = useState(false);
   const width = useWindowDimensions().width - gutter * 2;
   const live = useRef({ width, total, scrubTo });
   live.current = { width, total, scrubTo };
@@ -81,14 +83,14 @@ export default function Playing() {
         <RoundButton label="Minimize player" onPress={() => router.replace('/listen')}>
           <Icon name="down" size={22} />
         </RoundButton>
-        <Wordmark />
-        <OutlineButton
-          label="Done"
-          textSize={15}
-          style={{ paddingHorizontal: 18 }}
-          onPress={finish}
-        />
+        <View style={styles.topRight}>
+          <RoundButton label="Share this story" onPress={() => setSharing(true)}>
+            <Icon name="share" size={22} />
+          </RoundButton>
+          <OutlineButton label="Done" textSize={15} style={{ paddingHorizontal: 18 }} onPress={finish} />
+        </View>
       </View>
+      <ShareSheet lessonId={sharing ? lesson.id : null} title={lesson.title} onClose={() => setSharing(false)} />
 
       <PlayingArt
         playing={playing}
@@ -155,6 +157,7 @@ export default function Playing() {
 
 const styles = StyleSheet.create({
   top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  topRight: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   // A tall, invisible strip around the thin bar, so a thumb can grab it without aiming.
   scrub: { height: 36, justifyContent: 'center', marginTop: 4 },
   track: { height: 6, borderRadius: 3, backgroundColor: colors.line },

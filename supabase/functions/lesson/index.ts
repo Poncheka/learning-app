@@ -1758,7 +1758,31 @@ const QUEUE_PER_DAY = 10;
  * listener is short of stories. No phone is involved. Setting "reserve" to "off" in the settings
  * table stops it at once, with no redeploy.
  */
+/**
+ * A shared story that is not finished yet is finished, so whoever it was sent to can hear all of it.
+ * One chapter a minute, in order, so each is written knowing the ones before it.
+ */
+async function finishShared(): Promise<boolean> {
+  const week = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const { data } = await service.from("shares").select("lesson_id, lessons!inner(id, user_id, topic_id, segments(*))").gt("created_at", week).limit(100);
+  for (const share of (data ?? []) as any[]) {
+    const lesson = share.lessons;
+    const segments = [...(lesson?.segments ?? [])].sort((a: any, b: any) => a.position - b.position);
+    // Not made yet, or made in a retired voice, which the website does not play.
+    const next = segments.find((s: any) => s.status !== "ready" || (VOICES.includes(s.voice) && s.script));
+    if (!lesson || !next) continue;
+    await who.run({ user_id: lesson.user_id, client: service }, async () => {
+      mark({ lesson_id: lesson.id });
+      if (next.status === "ready") await revoiceRetired(lesson, segments, next);
+      else await makeSegment(lesson.id, next.position);
+    });
+    return true;
+  }
+  return false;
+}
+
 async function tick() {
+  await finishShared().catch((err) => console.log("finishing a shared story failed:", String(err)));
   if ((await setting("reserve", "on")) === "off") return;
   await shapeOld().catch(() => {});
   const secret = await setting("cron_secret", "");

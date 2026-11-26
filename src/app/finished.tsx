@@ -3,7 +3,8 @@ import { router } from 'expo-router';
 import { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 
-import { BigButton, Em, Eyebrow, OutlineButton, Screen, Serif, Wordmark } from '@/components/ui';
+import { ShareSheet } from '@/components/ShareSheet';
+import { BigButton, Em, Eyebrow, Icon, OutlineButton, RoundButton, Screen, Serif, Wordmark } from '@/components/ui';
 import { sendSignal } from '@/lib/api';
 import { usePlayer } from '@/state/player';
 import { colors, fonts } from '@/theme';
@@ -13,6 +14,7 @@ export default function Finished() {
   // The one place the listener says how it was. Saved against the lesson, and read back
   // when Pliny chooses what to offer next.
   const [verdict, setVerdict] = useState<'loved' | 'no' | null>(null);
+  const [sharing, setSharing] = useState(false);
   const leave = (to: '/listen') => {
     stop();
     router.replace(to);
@@ -31,7 +33,14 @@ export default function Finished() {
     <Screen style={{ paddingBottom: 40 }}>
       <View style={styles.disc} />
       <View style={styles.bar} />
-      <Wordmark />
+      <View style={styles.top}>
+        <Wordmark />
+        {lesson ? (
+          <RoundButton label="Share this story" onPress={() => setSharing(true)}>
+            <Icon name="share" size={22} />
+          </RoundButton>
+        ) : null}
+      </View>
       <View style={{ flex: 1 }} />
       <Eyebrow style={{ color: colors.ink, marginBottom: 8 }}>{lesson?.title}</Eyebrow>
       {/* Two separate lines, each with room above it. Squeezed into one tight block, the tops of the letters get clipped on iPhone. */}
@@ -47,11 +56,13 @@ export default function Finished() {
         <OutlineButton label="Not for me" icon="thumbDown" height={64} textSize={17} selected={verdict === 'no'} style={{ flex: 1, paddingHorizontal: 0 }} onPress={() => give('no')} />
       </View>
       <BigButton label="Pick the next one" onPress={() => leave('/listen')} />
+      <ShareSheet lessonId={sharing && lesson ? lesson.id : null} title={lesson?.title ?? ''} onClose={() => setSharing(false)} />
     </Screen>
   );
 }
 
 const styles = StyleSheet.create({
+  top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   disc: { position: 'absolute', right: -70, top: 90, width: 300, height: 300, borderRadius: 150, backgroundColor: colors.iris },
   bar: { position: 'absolute', right: 50, top: 150, width: 110, height: 24, backgroundColor: colors.yellow },
   wrap: { lineHeight: 92, letterSpacing: -2 },

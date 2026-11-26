@@ -74,6 +74,8 @@ export type LessonSummary = {
   finished?: boolean;
   /** About how many minutes are left to hear. Null when finished, or when it was played before this was recorded. */
   left_minutes?: number | null;
+  /** The chapter last reached, counting from 1. */
+  heard_position?: number | null;
 };
 
 /** Tells the server which chapter the listener has reached, so History can show what is left. */
@@ -333,4 +335,14 @@ export async function setAvatar(localUri: string): Promise<Profile> {
   const sent = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'image/jpeg', 'x-upsert': 'true' }, body: picture });
   if (!sent.ok) throw new Error('The picture could not be uploaded. Try again.');
   return await call<Profile>({ action: 'set_profile', avatar_path: path }, 'shelf');
+}
+
+// ---------- Sharing ----------
+
+export type Shared = { url: string; code: string; show_name: boolean; finishing: boolean; art: number };
+
+/** A public link to a story on itspliny.com. A story not finished yet is finished so friends can hear all of it. */
+export async function shareLesson(lessonId: string, showName = true): Promise<Shared> {
+  if (MOCK) return { url: 'https://itspliny.com/s/a-story?r=abc234', code: 'abc234', show_name: showName, finishing: false, art: 6 };
+  return await call<Shared>({ action: 'share', lesson_id: lessonId, show_name: showName }, 'shelf');
 }

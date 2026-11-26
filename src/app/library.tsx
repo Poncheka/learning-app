@@ -6,6 +6,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 
 import { CardArt, pickBackgrounds } from '@/components/covers';
 import { NowPlayingBar } from '@/components/NowPlayingBar';
+import { StoryActions } from '@/components/StoryMenu';
 import { StoryRow } from '@/components/StoryRow';
 import { ProfileBadge } from '@/components/ProfileBadge';
 import { Em, Eyebrow, OutlineButton, Screen, Serif, TabBar, Wordmark } from '@/components/ui';
@@ -34,6 +35,7 @@ export default function Library() {
   const lists = names.map((name) => ({ name, count: all.filter((l) => inPlaylist(l, name)).length })).filter((p) => p.count > 0 || p.name === EVERYTHING);
   const art = pickBackgrounds(lists.map((p) => `playlist-${p.name}`), true);
 
+  const [menu, setMenu] = useState<LessonSummary | null>(null);
   const play = (lesson: LessonSummary) => {
     playOne(lesson);
     router.push('/playing');
@@ -79,7 +81,7 @@ export default function Library() {
         <ScrollView style={styles.results} contentContainerStyle={{ paddingBottom: 12 }} keyboardShouldPersistTaps="handled">
           {found.length === 0 ? <Text style={[styles.note, { marginTop: 24 }]}>No story matches that.</Text> : null}
           {found.map((lesson) => (
-            <StoryRow key={lesson.id} lesson={lesson} onPlay={() => play(lesson)} onRemove={() => remove(lesson)} onUnlike={() => unlike(lesson)} />
+            <StoryRow key={lesson.id} lesson={lesson} onPlay={() => play(lesson)} onRemove={() => remove(lesson)} onUnlike={() => unlike(lesson)} onMore={() => setMenu(lesson)} />
           ))}
         </ScrollView>
       ) : (
@@ -110,6 +112,7 @@ export default function Library() {
       <NowPlayingBar />
       <View style={{ height: 10 }} />
       <TabBar active="library" />
+      <StoryActions lesson={menu} onClose={() => setMenu(null)} />
     </Screen>
   );
 }

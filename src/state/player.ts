@@ -12,6 +12,7 @@
 // chapter joins the queue once it is finished. That head start is what lets the next chapter
 // begin the instant this one ends. An abandoned lesson costs what was heard plus one chapter.
 import { Asset } from 'expo-asset';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createAudioPlaylist, setAudioModeAsync, setIsAudioActiveAsync, type AudioPlaylist, type AudioPlaylistStatus } from 'expo-audio';
 import { create } from 'zustand';
 
@@ -52,7 +53,7 @@ type PlayerState = {
   error: string | null;
   begin: (topic: Topic, minutes: number) => Promise<void>;
   /** Plays a lesson from the Library again. Chapters already made are free to replay. */
-  resume: (summary: LessonSummary) => Promise<void>;
+  resume: (summary: LessonSummary, fromStart?: boolean) => Promise<void>;
   toggle: () => void;
   seekBy: (seconds: number) => void;
   jumpTo: (index: number) => void;
@@ -81,6 +82,8 @@ let endQueued = false;
 let endTried = false;
 let wantPlaying = false;
 let stalled = false;
+// Where inside the first chapter played to begin, when a story is picked up where it was left.
+let startSeek: number | null = null;
 // A finished story whose closing sting is still sounding after the listener has moved on.
 // It is left to play out, then let go. Starting another story lets it go at once.
 let lingering: { player: AudioPlaylist; timer: ReturnType<typeof setTimeout> } | null = null;
@@ -124,6 +127,7 @@ function endLingering() {
 function teardown(keepSting = false) {
   endLingering();
   pendingSeek = null;
+  startSeek = null;
   endQueued = false;
   endTried = false;
   wantPlaying = false;
@@ -234,6 +238,15 @@ export const usePlayer = create<PlayerState>((set, get) => {
       return set({ playing: status.playing, buffering: onSting ? false : status.isBuffering });
     }
     const duration = Number.isFinite(status.duration) && status.duration > 0 ? status.duration : 0;
+    // A story picked up part way: once its chapter has loaded, move to where the listener left off.
+    if (startSeek !== null && duration > 0) {
+      const to = Math.min(startSeek, duration - 2);
+      startSeek = null;
+      if (to > 1) {
+        playlist?.seekTo(to).catch(() => {});
+        return set({ playing: status.playing, buffering: status.isBuffering, time: to, duration });
+      }
+    }
     set({ playing: status.playing, buffering: status.isBuffering, time: status.currentTime || 0, duration });
     // Each report is a chance to queue the next chapter, now that it may be finished or due.
     fill();
@@ -310,7 +323,7 @@ export const usePlayer = create<PlayerState>((set, get) => {
   };
 
   /** Gets a lesson from the server and starts playing it from its first chapter. */
-  const launch = async (topic: Topic, minutes: number, fetchLesson: () => Promise<Lesson>) => {
+  const launch = async (topic: Topic, minutes: number, fetchLesson: () => Promise<Lesson>, start?: Start | null) => {
     teardown();
     const mine = ++run;
     set({ ...idle, phase: 'starting', topic, minutes });
@@ -342,6 +355,35 @@ export const usePlayer = create<PlayerState>((set, get) => {
       playlist.playbackRate = get().rate;
       subscriptions = [playlist.addListener('playlistStatusUpdate', onStatus), playlist.addListener('trackChanged', onTrack)];
       showOnLockScreen(0, true);
+      // Picked up part way through: the chapters up to where they were are already made, so they go
+      // in the queue now, and playing starts in the chapter they were in, at the second they left.
+      const count = lesson.segments.length;
+      const from = start && start.chapter > 0 && start.chapter < count ? start.chapter : 0;
+      if (from > 0) {
+        const made = get().made;
+        let queued = get().queued;
+        for (let position = queued + 1; position <= Math.min(count, from + 2); position++) {
+          if (!made[position - 1]) break;
+          playlist.add({ uri: chapterAudioUrl(lesson.id, position) });
+          queued = position;
+        }
+        set({ queued });
+        if (queued >= count && !endQueued) {
+          endTried = true;
+          try {
+            playlist.add({ uri: Asset.fromModule(STING).uri });
+            endQueued = true;
+          } catch {
+            // The lesson still ends properly, just without the sting.
+          }
+        }
+        if (from < queued) {
+          pendingSeek = start && start.time > 1 ? start.time : null;
+          playlist.skipTo(trackOf(from));
+        }
+      } else if (start && start.time > 1) {
+        startSeek = start.time;
+      }
       wantPlaying = true;
       playlist.play();
       // The chapter after the opening is made while the opening plays, so it is ready
@@ -366,14 +408,24 @@ export const usePlayer = create<PlayerState>((set, get) => {
       return started;
     },
 
-    resume: (summary) => {
+    resume: (summary, fromStart) => {
       // Already loaded: carry on with it. Starting it again would stack a second copy on top.
       const { lesson, phase } = get();
       if (lesson?.id === summary.id && (phase === 'playing' || phase === 'starting')) {
         if (phase === 'playing' && !get().playing) get().toggle();
         return Promise.resolve();
       }
-      return launch({ id: summary.id, title: summary.title, hook: '', chapters: [], max_minutes: summary.chosen_minutes }, summary.chosen_minutes, () => getLesson(summary.id));
+      // A story not yet finished picks up where it was left: to the second on this phone, or at
+      // the start of the chapter last reached, as the server remembers it.
+      const pickUp = async (): Promise<Start | null> => {
+        if (summary.finished || fromStart) return null;
+        const saved = await loadSpot(summary.id);
+        if (saved) return saved;
+        return summary.heard_position && summary.heard_position > 1 ? { chapter: summary.heard_position - 1, time: 0 } : null;
+      };
+      return pickUp().then((start) =>
+        launch({ id: summary.id, title: summary.title, hook: '', chapters: [], max_minutes: summary.chosen_minutes }, summary.chosen_minutes, () => getLesson(summary.id), start),
+      );
     },
 
     toggle: () => {
@@ -518,6 +570,35 @@ export function clock(seconds: number): string {
   return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
 }
 
+
+// ---------- Where each story was left ----------
+
+type Start = { chapter: number; time: number };
+const spotKey = (lessonId: string) => `pliny-spot-${lessonId}`;
+async function loadSpot(lessonId: string): Promise<Start | null> {
+  try {
+    const raw = await AsyncStorage.getItem(spotKey(lessonId));
+    const spot = raw ? JSON.parse(raw) : null;
+    return spot && Number.isFinite(spot.chapter) && Number.isFinite(spot.time) ? { chapter: spot.chapter, time: spot.time } : null;
+  } catch {
+    return null;
+  }
+}
+
+// The spot is kept on the phone every few seconds while a story plays, and forgotten once it ends.
+let lastSaved = 0;
+usePlayer.subscribe((now, before) => {
+  if (MOCK || !now.lesson || now.interlude) return;
+  if (now.phase === 'finished' && before.phase !== 'finished') {
+    AsyncStorage.removeItem(spotKey(now.lesson.id)).catch(() => {});
+    return;
+  }
+  if (now.phase !== 'playing') return;
+  const paused = before.playing && !now.playing;
+  if (!paused && now.index === before.index && Math.abs(now.time - lastSaved) < 5) return;
+  lastSaved = now.time;
+  AsyncStorage.setItem(spotKey(now.lesson.id), JSON.stringify({ chapter: now.index, time: Math.max(0, now.time - 3) })).catch(() => {});
+});
 
 // History shows whether a story was finished, or about how much is left. So each time the listener
 // moves to a new chapter, and when they reach the end, the server is told.

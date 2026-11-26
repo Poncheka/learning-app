@@ -11,6 +11,7 @@
 // POST { action: "profile" }                      the listener's first name and picture.
 // POST { action: "set_profile", first_name?, avatar_path? }   change either.
 // POST { action: "avatar_upload" }                a one-time address to upload a new picture to.
+// POST { action: "share", lesson_id, show_name? }  a public link to a story, finished first if need be.
 //
 // The learning loop lives in "propose". It reads what the listener loved, what they turned
 // down and what they swiped away, and asks for topics that lean toward the first and away
@@ -152,6 +153,7 @@ async function listLessons() {
       made: l.segments.filter((s: any) => s.status === "ready").length,
       liked: liked.has(l.id),
       finished: Boolean(l.finished_at),
+      heard_position: l.heard_position ?? null,
       // What is left counts the chapter they were in as still to hear, so it is "about" this much.
       // Stories played before this was recorded have no figure.
       left_minutes: l.finished_at || !l.heard_position ? null : Math.round(l.segments.filter((s: any) => s.position >= l.heard_position).reduce((sum: number, s: any) => sum + (Number(s.target_minutes) || 0), 0)),
@@ -605,6 +607,31 @@ async function handle(req: Request): Promise<Response> {
     return json(await profile());
   }
 
+  if (body.action === "share") {
+    if (!isId(body.lesson_id)) return json({ error: "Give a lesson_id." }, 400);
+    const { data: lesson } = await db.from("lessons").select("id, topic_id, user_id, segments(status)").eq("id", body.lesson_id).maybeSingle();
+    if (!lesson || lesson.user_id !== me()) return json({ error: "That story could not be found." }, 404);
+    const showName = body.show_name !== false;
+    const slug = await storySlug(lesson.topic_id);
+    if (!slug) return json({ error: "That story cannot be shared yet." }, 400);
+    // One link per story per person. Sharing it again keeps the same link, with the name choice updated.
+    const { data: had } = await service.from("shares").select("code").eq("lesson_id", lesson.id).eq("user_id", me()).maybeSingle();
+    let code = had?.code as string | undefined;
+    if (code) await service.from("shares").update({ show_name: showName }).eq("code", code);
+    for (let tries = 0; !code && tries < 5; tries++) {
+      const fresh = shareCode();
+      const { error } = await service.from("shares").insert({ code: fresh, lesson_id: lesson.id, topic_id: lesson.topic_id, user_id: me(), show_name: showName });
+      if (!error) code = fresh;
+    }
+    if (!code) return json({ error: "The link could not be made. Try again." }, 500);
+    // A story not finished yet is finished by the scheduled job, a chapter a minute, so it can all be heard.
+    const unfinished = (lesson.segments ?? []).some((s: any) => s.status !== "ready");
+    // The same background the app and the website show for this story.
+    let art = 0;
+    for (const c of String(lesson.topic_id)) art = (art * 31 + c.charCodeAt(0)) >>> 0;
+    return json({ url: `https://itspliny.com/s/${slug}?r=${code}`, code, show_name: showName, finishing: unfinished, art: art % 30 });
+  }
+
   if (body.action === "avatar_upload") {
     // Each picture gets a new name, so the old one never shows from a cache after a change.
     const path = `${me()}/${Date.now()}.jpg`;
@@ -614,6 +641,42 @@ async function handle(req: Request): Promise<Response> {
   }
 
   return json({ error: "Unknown action." }, 400);
+}
+
+/** A short code for a share link: easy to read aloud, no look-alike letters. */
+function shareCode(): string {
+  const letters = "abcdefghjkmnpqrstuvwxyz23456789";
+  const bytes = crypto.getRandomValues(new Uint8Array(6));
+  return [...bytes].map((b) => letters[b % letters.length]).join("");
+}
+
+/**
+ * The story's address on itspliny.com, made from its title the first time it is shared and kept
+ * after that: "The pope who put a dead pope on trial" is /s/the-pope-who-put-a-dead-pope-on-trial.
+ */
+async function storySlug(topicId: string | null): Promise<string | null> {
+  if (!topicId) return null;
+  const { data: topic } = await service.from("topics").select("slug, title").eq("id", topicId).maybeSingle();
+  if (!topic) return null;
+  if (topic.slug) return topic.slug;
+  const full = String(topic.title ?? "story")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/['’]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  // A long title is cut at a whole word.
+  const base = (full.length > 70 ? full.slice(0, 70).replace(/-[^-]*$/, "") : full) || "story";
+  for (let n = 1; n < 20; n++) {
+    const slug = n === 1 ? base : `${base}-${n}`;
+    const { error } = await service.from("topics").update({ slug }).eq("id", topicId).is("slug", null);
+    if (!error) {
+      const { data: kept } = await service.from("topics").select("slug").eq("id", topicId).maybeSingle();
+      if (kept?.slug) return kept.slug;
+    }
+  }
+  return null;
 }
 
 /** The listener's first name and a link to their picture, good for a week. */

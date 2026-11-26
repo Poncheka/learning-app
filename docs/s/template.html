@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{{TITLE}}. A story from Pliny</title>
+<meta name="description" content="{{DESCRIPTION}}">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Pliny">
+<meta property="og:title" content="{{TITLE}}. A story from Pliny">
+<meta property="og:description" content="{{DESCRIPTION}}">
+<meta property="og:url" content="{{URL}}">
+<meta property="og:image" content="{{IMAGE}}">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#F7F7F4">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/s/story.css">
+</head>
+<body>
+
+<!-- 1. Landing: who sent it, the cover, one button. -->
+<main class="page" id="landing">
+  <div class="landing">
+    <a href="/" class="logo">pliny.</a>
+    <p class="sent serif" id="sent">A story <em>for you.</em></p>
+    <div class="art cover" id="cover" aria-hidden="true"></div>
+    <h1 class="big-title grotesk" id="big-title">{{TITLE}}.</h1>
+    <div class="meta"><span class="tag" id="tag" hidden></span><span id="minutes"></span></div>
+    <div style="flex:1;min-height:32px"></div>
+    <button class="btn" id="start" type="button"><svg width="20" height="22" viewBox="0 0 20 22" aria-hidden="true"><path d="M2 1.5v19l16.5-9.5z"/></svg>Play the story</button>
+    <p class="fine">Pliny makes true, strange stories about what you&rsquo;re into, sized to the time you have.</p>
+  </div>
+</main>
+
+<!-- 2. Playing, with the waitlist at the foot of the screen. -->
+<main class="page" id="player" hidden>
+  <header class="top">
+    <a href="/" class="logo">pliny.</a>
+    <a href="#join" class="pill" id="to-join">Join waitlist</a>
+  </header>
+  <section class="now">
+    <p class="eyebrow" id="sent-by" hidden></p>
+    <div class="row">
+      <div class="art thumb" id="thumb" aria-hidden="true"></div>
+      <div>
+        <h1 class="title grotesk" id="title">{{TITLE}}.</h1>
+        <span class="tag" id="tag2" hidden></span>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="play" id="play" type="button" aria-label="Pause">
+        <svg id="ic-pause" width="22" height="24" viewBox="0 0 22 24" aria-hidden="true"><rect x="1" width="7" height="24"/><rect x="14" width="7" height="24"/></svg>
+        <svg id="ic-play" width="24" height="26" viewBox="0 0 20 22" aria-hidden="true" hidden><path d="M2 1.5v19l16.5-9.5z"/></svg>
+      </button>
+      <div class="track">
+        <div class="bar" role="progressbar" aria-label="How far through the story" aria-valuemin="0" aria-valuemax="100" id="bar"><i id="fill"></i></div>
+        <div class="left" id="left">Starting</div>
+      </div>
+    </div>
+    <p class="waiting" id="waiting" hidden>The rest of this story is still being finished. It carries on by itself in a minute or two.</p>
+  </section>
+  <section class="pitch">
+    <h2>Whatever you&rsquo;re into, <em>there&rsquo;s a story.</em></h2>
+    <p>Pliny turns your curiosity into short audio stories, researched from real sources and made to fit the time you have.</p>
+  </section>
+  <section class="sources">
+    <p class="eyebrow">Sources</p>
+    <ul id="sources"></ul>
+    <p class="note">Written and narrated with AI. Facts checked against public sources. <a href="/privacy/">Privacy</a> &middot; <a href="/terms/">Terms</a></p>
+  </section>
+  <div class="dock" id="join">
+    <form class="dock-in" id="dock-form" novalidate>
+      <label for="dock-email">Get stories like this, made for you</label>
+      <div class="form-row">
+        <input id="dock-email" name="email" type="email" autocomplete="email" inputmode="email" placeholder="you@email.com" required>
+        <input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+        <button type="submit">Join</button>
+      </div>
+      <p class="error" hidden></p>
+    </form>
+  </div>
+</main>
+
+<!-- 3. The story has ended: what are you into, and an email. -->
+<div class="sheet" id="ended" hidden role="dialog" aria-modal="true" aria-labelledby="want">
+  <div class="page">
+    <header class="top"><a href="/" class="logo">pliny.</a><button class="close" id="close-ended" type="button" aria-label="Close"><svg width="18" height="18" viewBox="0 0 18 18" aria-hidden="true"><path d="M2 2l14 14M16 2L2 16" stroke="#17191B" stroke-width="2.2" stroke-linecap="round"/></svg></button></header>
+    <div class="ended-art" aria-hidden="true"><i class="disc"></i><i class="stripe"></i><span>That was the story.</span></div>
+    <h2 class="want serif" id="want">Want stories like this, <em>made for you?</em></h2>
+    <p class="eyebrow">Start with what you&rsquo;re into</p>
+    <div class="chips" id="chips"></div>
+    <form class="stack" id="end-form" novalidate>
+      <input name="email" type="email" autocomplete="email" inputmode="email" placeholder="you@email.com" aria-label="Your email" required>
+      <input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+      <button class="btn" type="submit">Join waitlist</button>
+      <p class="error" hidden></p>
+    </form>
+  </div>
+</div>
+
+<!-- 4. On the list: pass it on to move up. -->
+<div class="sheet" id="joined" hidden>
+  <div class="page">
+    <header class="top"><a href="/" class="logo">pliny.</a></header>
+    <div class="done-card">
+      <div class="tick" aria-hidden="true"><svg width="20" height="16" viewBox="0 0 20 16"><path d="M2 8l5.5 5.5L18 2" fill="none" stroke="#F7F7F4" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      <h2 class="grotesk">You&rsquo;re on the list.</h2>
+      <p id="joined-note">We&rsquo;ll email you when your invite is ready.</p>
+    </div>
+    <h2 class="faster serif">Move up <em>faster.</em></h2>
+    <p>Send this story to a friend. Each person who joins through your link moves you up the list.</p>
+    <div class="stack">
+      <button class="btn" id="share" type="button"><svg width="18" height="22" viewBox="0 0 18 22" aria-hidden="true"><path d="M9 1v13M4 6l5-5 5 5M2 11v9h14v-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>Share this story</button>
+      <button class="btn outline" id="copy" type="button">Copy your link</button>
+    </div>
+    <p class="once">We email you once, when your invite is ready.</p>
+  </div>
+</div>
+
+<div class="toast" id="toast" hidden role="status"></div>
+<script src="/s/art.js"></script>
+<script src="/s/story.js"></script>
+</body>
+</html>

@@ -6,6 +6,7 @@ import { KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, View } fro
 
 import { SlideToStart } from '@/components/SlideToStart';
 import { Em, Screen, Wordmark } from '@/components/ui';
+import { getInterests } from '@/lib/api';
 import { useProfile } from '@/state/profile';
 import { colors, fonts } from '@/theme';
 
@@ -26,7 +27,11 @@ export default function YourName() {
       setError(err instanceof Error ? err.message : 'That did not save. Try again.');
       return false;
     }
-    router.replace('/first-interests');
+    // Someone who already has interests, from before names were asked, goes straight to Listen.
+    const hasInterests = await getInterests()
+      .then((data) => data.interests.length > 0)
+      .catch(() => false);
+    router.replace(hasInterests ? '/listen' : '/first-interests');
   };
 
   return (

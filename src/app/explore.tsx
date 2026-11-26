@@ -121,12 +121,7 @@ export default function Explore() {
     <Screen flush>
       <View style={styles.top}>
         <Wordmark />
-        <View style={styles.topRight}>
-          <Pressable accessibilityRole="link" onPress={() => router.push('/interests')} hitSlop={12}>
-            <Text style={styles.editText}>Edit interests</Text>
-          </Pressable>
-          <ProfileBadge />
-        </View>
+        <ProfileBadge />
       </View>
       <Serif size={40} style={styles.heading}>
         Pick what comes <Em>next.</Em>
@@ -141,6 +136,10 @@ export default function Explore() {
             </Pressable>
           );
         })}
+        {/* The last chip adds or changes interests. Interests are also in the profile. */}
+        <Pressable accessibilityRole="button" accessibilityLabel="Edit interests" onPress={() => router.push('/interests')} style={[styles.chip, styles.addChip]}>
+          <Icon name="plus" size={20} />
+        </Pressable>
       </ScrollView>
       <View style={{ height: 12 }} />
 
@@ -197,14 +196,13 @@ export default function Explore() {
 
 const styles = StyleSheet.create({
   top: { paddingHorizontal: gutter, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  topRight: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   heading: { marginHorizontal: gutter, marginTop: 18, marginBottom: 14 },
   chips: { flexGrow: 0 },
   chipRow: { paddingHorizontal: gutter, gap: 8 },
   chip: { height: 44, paddingHorizontal: 18, borderRadius: 22, borderWidth: 1.5, borderColor: colors.ink, backgroundColor: colors.white, justifyContent: 'center' },
   chipOn: { backgroundColor: colors.ink },
+  addChip: { width: 44, paddingHorizontal: 0, alignItems: 'center', backgroundColor: colors.yellow },
   chipText: { fontFamily: fonts.bodySemi, fontSize: 15, color: colors.ink },
-  editText: { fontFamily: fonts.bodySemi, fontSize: 15, color: colors.ink, textDecorationLine: 'underline' },
   queue: { fontFamily: fonts.body, fontSize: 14, lineHeight: 19, color: colors.gray, marginHorizontal: gutter, marginBottom: 10 },
   scroll: { flex: 1, minHeight: 0 },
   list: { paddingHorizontal: gutter, paddingBottom: 12, gap: 8 },

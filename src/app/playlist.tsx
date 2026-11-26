@@ -1,10 +1,11 @@
 // Inside one playlist of the Library: its stories, and a button to play them back to back.
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { CardArt, pickBackgrounds } from '@/components/covers';
 import { NowPlayingBar } from '@/components/NowPlayingBar';
+import { StoryActions } from '@/components/StoryMenu';
 import { StoryRow } from '@/components/StoryRow';
 import { Icon, RoundButton, Screen, TabBar } from '@/components/ui';
 import type { LessonSummary } from '@/lib/api';
@@ -23,6 +24,7 @@ export default function Playlist() {
   const minutes = stories.reduce((sum, l) => sum + (l.chosen_minutes || 0), 0);
   const [look] = pickBackgrounds([`playlist-${name}`], true);
 
+  const [menu, setMenu] = useState<LessonSummary | null>(null);
   const play = (lesson: LessonSummary) => {
     playOne(lesson);
     router.push('/playing');
@@ -60,7 +62,7 @@ export default function Playlist() {
 
       <ScrollView style={styles.list} contentContainerStyle={{ paddingBottom: 12 }} showsVerticalScrollIndicator={false}>
         {stories.map((lesson) => (
-          <StoryRow key={lesson.id} lesson={lesson} onPlay={() => play(lesson)} onRemove={() => remove(lesson)} onUnlike={() => unlike(lesson)} />
+          <StoryRow key={lesson.id} lesson={lesson} onPlay={() => play(lesson)} onRemove={() => remove(lesson)} onUnlike={() => unlike(lesson)} onMore={() => setMenu(lesson)} />
         ))}
         {lessons !== null && stories.length === 0 ? <Text style={styles.note}>Nothing in this playlist yet.</Text> : null}
       </ScrollView>
@@ -68,6 +70,7 @@ export default function Playlist() {
       <NowPlayingBar />
       <View style={{ height: 10 }} />
       <TabBar active="library" within />
+      <StoryActions lesson={menu} onClose={() => setMenu(null)} />
     </Screen>
   );
 }

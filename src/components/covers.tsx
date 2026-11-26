@@ -47,8 +47,9 @@ export function colorFor(id: string): string {
  * A small square of a background's artwork, for the Library. The drawings keep their
  * shapes in the right hand end, so the square is cut from there: pattern, not flat color.
  */
-export function CoverTile({ id, size }: { id: string; size: number }) {
-  const background = cardBackgrounds[hash(id) % cardBackgrounds.length];
+export function CoverTile({ id, size, art }: { id: string; size: number; art?: number }) {
+  // `art` picks a background by number, as the server does for a shared story, so all three match.
+  const background = cardBackgrounds[art !== undefined ? art % cardBackgrounds.length : hash(id) % cardBackgrounds.length];
   return (
     <View style={{ width: size, height: size, overflow: 'hidden', backgroundColor: background.background }}>
       <SvgXml xml={background.xml} width={(size * 684) / 300} height={size} style={{ position: 'absolute', top: 0, right: 0 }} pointerEvents="none" />
