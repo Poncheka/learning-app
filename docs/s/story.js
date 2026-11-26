@@ -37,6 +37,7 @@
     paintArt($('cover'), story.art);
     paintArt($('thumb'), story.art);
     $('sources').innerHTML = '';
+    $('src-box').hidden = !story.sources.length;
     story.sources.forEach(function (s) {
       var li = document.createElement('li'), a = document.createElement('a');
       a.href = s.url; a.target = '_blank'; a.rel = 'noopener'; a.textContent = 'Wikipedia: ' + s.title;
@@ -235,14 +236,14 @@
   hook($('end-form'), 'share-end', true);
 
   $('share').addEventListener('click', function () {
-    var data = { title: story.title + '. A story from Pliny', url: myLink() };
+    var data = { title: story.title + '. A story from Pliny', text: 'You gotta hear this! ' + story.title, url: myLink() };
     if (navigator.share) navigator.share(data).catch(function () {});
     else navigator.clipboard.writeText(myLink()).then(function () { toast('Link copied'); });
   });
   // Passing the story on from the page: the link names nobody, unless this visitor has joined
   // and has a code of their own, so the next person does not see "Jeff sent you a story".
   $('share-top').addEventListener('click', function () {
-    var data = { title: story.title + '. A story from Pliny', url: myLink() };
+    var data = { title: story.title + '. A story from Pliny', text: 'You gotta hear this! ' + story.title, url: myLink() };
     if (navigator.share) navigator.share(data).catch(function () {});
     else navigator.clipboard.writeText(myLink()).then(function () { toast('Link copied'); }, function () { prompt('Copy the link', myLink()); });
   });

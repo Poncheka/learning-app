@@ -627,6 +627,16 @@ async function handle(req: Request): Promise<Response> {
       if (!error) code = fresh;
     }
     if (!code) return json({ error: "The link could not be made. Try again." }, 500);
+    // A story finished in the last hour may not have its page on itspliny.com yet, so its link would
+    // show no artwork in a text. Sending it starts a build of the website at once.
+    if (sent) {
+      const built = rebuildSite();
+      try {
+        EdgeRuntime.waitUntil(built);
+      } catch {
+        /* the build was still asked for */
+      }
+    }
     // A story not finished yet is finished by the scheduled job, a chapter a minute, so it can all be heard.
     const unfinished = (lesson.segments ?? []).some((s: any) => s.status !== "ready");
     // The same background the app and the website show for this story.
@@ -644,6 +654,21 @@ async function handle(req: Request): Promise<Response> {
   }
 
   return json({ error: "Unknown action." }, 400);
+}
+
+/**
+ * Asks GitHub to publish the website now rather than at its next scheduled run. Needs a GitHub
+ * token allowed to run this repository's workflows, saved as the GITHUB_SITE_TOKEN secret. Without
+ * one, pages are still made by the scheduled run. Asking twice in a row is harmless.
+ */
+async function rebuildSite(): Promise<void> {
+  const token = Deno.env.get("GITHUB_SITE_TOKEN");
+  if (!token) return;
+  await fetch("https://api.github.com/repos/Poncheka/learning-app/actions/workflows/site.yml/dispatches", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "pliny-shelf" },
+    body: JSON.stringify({ ref: "main" }),
+  }).catch(() => null);
 }
 
 /** A short code for a share link: easy to read aloud, no look-alike letters. */

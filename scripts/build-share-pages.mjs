@@ -20,7 +20,7 @@ const page = ({ title, description, url, image, art = '' }) =>
 
 // Any address under /s/ that has no page yet, such as a story shared a minute ago, falls back to
 // GitHub's 404 page, which is this same page without a preview. It plays the story all the same.
-writeFileSync(join(out, '404.html'), page({ title: 'A story', description: 'True, strange stories about what you are into, sized to the time you have.', url: ORIGIN, image: `${ORIGIN}/s/og/0.png` }));
+writeFileSync(join(out, '404.html'), page({ title: 'A story', description: 'Pliny generates custom lessons based on your interests.', url: ORIGIN, image: `${ORIGIN}/s/og/0.png` }));
 
 const res = await fetch(`${API}?stories=1`);
 if (!res.ok) throw new Error(`The story list could not be read: ${res.status}`);

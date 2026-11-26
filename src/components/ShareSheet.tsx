@@ -1,7 +1,7 @@
 // Share this story: a link to the story on itspliny.com that anyone can play in full. Opened from
 // the wrap screen, the player and the Library. Friends who join the waitlist move the sharer up.
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Platform, Share, StyleSheet, Switch, Text, View } from 'react-native';
+import { ActivityIndicator, Share, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { BottomSheet } from '@/components/BottomSheet';
 import { CoverTile } from '@/components/covers';
@@ -67,11 +67,13 @@ export function ShareSheet({ lessonId, title, onClose }: { lessonId: string | nu
   };
   const closed = () => {
     const url = handOff.current;
+    const said = shown?.title ?? title;
     handOff.current = null;
     setShown(null);
     setShared(null);
-    // Only the link goes to iOS, so Copy there copies the link and a text shows its preview.
-    if (url) setTimeout(() => Share.share(Platform.OS === 'ios' ? { url } : { message: url }).catch(() => {}), 50);
+    // One message with the link inside it. Copy then copies the words and the link together, and a
+    // text shows the story's preview card under them.
+    if (url) setTimeout(() => Share.share({ message: `You gotta hear this! ${said}\n${url}` }).catch(() => {}), 50);
   };
 
   return (

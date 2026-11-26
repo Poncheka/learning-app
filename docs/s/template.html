@@ -32,7 +32,7 @@
     <div class="meta"><span class="tag" id="tag" hidden></span><span id="minutes"></span></div>
     <div style="flex:1;min-height:32px"></div>
     <button class="btn" id="start" type="button"><svg width="20" height="22" viewBox="0 0 20 22" aria-hidden="true"><path d="M2 1.5v19l16.5-9.5z"/></svg>Play the story</button>
-    <p class="fine">Pliny makes true, strange stories about what you&rsquo;re into, sized to the time you have.</p>
+    <p class="fine">Pliny generates custom lessons based on your interests.</p>
   </div>
 </main>
 
@@ -79,8 +79,10 @@
     <p>Pliny turns your curiosity into short audio stories, researched from real sources and made to fit the time you have.</p>
   </section>
   <section class="sources">
-    <p class="eyebrow">Sources</p>
-    <ul id="sources"></ul>
+    <details class="src" id="src-box">
+      <summary><span class="eyebrow">Sources</span><svg class="chev" width="16" height="10" viewBox="0 0 18 12" aria-hidden="true"><path d="M2 2l7 7 7-7" fill="none" stroke="#17191B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></summary>
+      <ul id="sources"></ul>
+    </details>
     <p class="note">Written and narrated with AI. Facts checked against public sources. <a href="/privacy/">Privacy</a> &middot; <a href="/terms/">Terms</a></p>
   </section>
   <div class="dock" id="join">
