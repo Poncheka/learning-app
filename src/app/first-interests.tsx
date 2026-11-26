@@ -8,6 +8,7 @@ import { Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleS
 import { SlideToStart } from '@/components/SlideToStart';
 import { Em, Eyebrow, Screen, Wordmark } from '@/components/ui';
 import { addInterests, popularInterests, stockExplore } from '@/lib/api';
+import { useProfile } from '@/state/profile';
 import { useTopics } from '@/state/topics';
 import { colors, fonts } from '@/theme';
 
@@ -33,6 +34,7 @@ const NEEDED = 3;
 const MOST = 10;
 
 export default function FirstInterests() {
+  const firstName = useProfile((s) => s.first_name);
   const [picked, setPicked] = useState<string[]>([]);
   const [typed, setTyped] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -105,7 +107,7 @@ export default function FirstInterests() {
         </View>
         {typing ? null : (
           <Text style={styles.head} accessibilityRole="header">
-            Welcome. What are you <Em>into?</Em>
+            {firstName ? `Welcome, ${firstName}.` : 'Welcome.'} What are you <Em>into?</Em>
           </Text>
         )}
 

@@ -308,3 +308,29 @@ function mockLesson(topicId: string, minutes: number): Lesson {
     segments: lengths.map((target_minutes, i) => ({ position: i + 1, title: mockChapters[i], target_minutes, status: 'planned' })),
   };
 }
+
+// ---------- Profile ----------
+
+export type Profile = { first_name: string | null; avatar_url: string | null };
+
+/** The listener's first name and picture. */
+export async function getProfile(): Promise<Profile> {
+  if (MOCK) return { first_name: 'Jeff', avatar_url: null };
+  return await call<Profile>({ action: 'profile' }, 'shelf');
+}
+
+/** Saves a new first name. */
+export async function setFirstName(firstName: string): Promise<Profile> {
+  if (MOCK) return { first_name: firstName, avatar_url: null };
+  return await call<Profile>({ action: 'set_profile', first_name: firstName }, 'shelf');
+}
+
+/** Uploads a picture from the phone and makes it the listener's profile picture. */
+export async function setAvatar(localUri: string): Promise<Profile> {
+  if (MOCK) return { first_name: 'Jeff', avatar_url: localUri };
+  const { path, url } = await call<{ path: string; url: string }>({ action: 'avatar_upload' }, 'shelf');
+  const picture = await (await fetch(localUri)).blob();
+  const sent = await fetch(url, { method: 'PUT', headers: { 'Content-Type': 'image/jpeg', 'x-upsert': 'true' }, body: picture });
+  if (!sent.ok) throw new Error('The picture could not be uploaded. Try again.');
+  return await call<Profile>({ action: 'set_profile', avatar_path: path }, 'shelf');
+}

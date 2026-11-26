@@ -1,0 +1,25 @@
+/* The Terms and Privacy pages. Same type and colors as the home page. */
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap');
+:root{--ink:#17191B;--paper:#F7F7F4;--red:#FF5438;--yellow:#EFFF00;--blue:#2447FF;--gray:#66696B;--pad:80px}
+*{box-sizing:border-box}
+body{margin:0;font-family:'Inter',system-ui,sans-serif;background:var(--paper);color:var(--ink);-webkit-font-smoothing:antialiased}
+a{color:var(--ink)}
+a:focus-visible{outline:3px solid var(--blue);outline-offset:3px}
+.nav{max-width:1440px;margin:0 auto;height:88px;padding:0 var(--pad);display:flex;align-items:center;justify-content:space-between}
+.logo{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:34px;letter-spacing:-1.2px;text-decoration:none}
+.pill{height:48px;padding:0 20px;border-radius:24px;border:1.5px solid var(--ink);display:flex;align-items:center;font-size:15px;font-weight:600;background:#fff;text-decoration:none}
+.doc{max-width:720px;margin:0 auto;padding:40px 24px 96px;font-size:17px;line-height:1.65}
+.eyebrow{font-size:12px;font-weight:600;letter-spacing:2.5px;text-transform:uppercase;color:var(--gray);margin:0 0 8px}
+h1{font-family:'Instrument Serif',serif;font-weight:400;font-size:72px;line-height:1;letter-spacing:-1.5px;margin:0}
+.meta{color:var(--gray);font-size:15px;margin:12px 0 40px}
+h2{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:24px;letter-spacing:-.5px;margin:48px 0 12px}
+h3{font-size:17px;font-weight:600;margin:24px 0 4px}
+p{margin:0 0 16px}
+ul{margin:0 0 16px;padding-left:22px}
+li{margin:0 0 8px}
+footer{max-width:1440px;margin:0 auto;padding:44px var(--pad);display:flex;justify-content:space-between;align-items:center;gap:16px;border-top:1.5px solid var(--ink)}
+footer .logo{font-size:28px}
+footer nav{display:flex;gap:20px;font-size:14px;font-weight:500}
+footer nav a{text-decoration:none}
+@media (min-width:1100px){html{zoom:.9}}
+@media (max-width:720px){:root{--pad:20px}.nav{height:72px}.logo{font-size:28px}h1{font-size:52px}.doc{padding-top:24px}footer{flex-direction:column;align-items:flex-start}}

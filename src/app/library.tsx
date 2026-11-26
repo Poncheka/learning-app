@@ -7,6 +7,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, TextInput, 
 import { CardArt, pickBackgrounds } from '@/components/covers';
 import { NowPlayingBar } from '@/components/NowPlayingBar';
 import { StoryRow } from '@/components/StoryRow';
+import { ProfileBadge } from '@/components/ProfileBadge';
 import { Em, Eyebrow, OutlineButton, Screen, Serif, TabBar, Wordmark } from '@/components/ui';
 import type { LessonSummary } from '@/lib/api';
 import { EVERYTHING, LIKED, inPlaylist, playOne, shelfOf, useLibrary } from '@/state/library';
@@ -41,7 +42,10 @@ export default function Library() {
   return (
     <Screen flush>
       <View style={styles.head}>
-        <Wordmark />
+        <View style={styles.top}>
+          <Wordmark />
+          <ProfileBadge />
+        </View>
         <Serif style={{ marginTop: 18, marginBottom: 12 }}>
           Your <Em>library.</Em>
         </Serif>
@@ -112,6 +116,7 @@ export default function Library() {
 
 const styles = StyleSheet.create({
   head: { paddingHorizontal: gutter },
+  top: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14, paddingHorizontal: gutter + 12 },
   note: { fontFamily: fonts.body, fontSize: 17, lineHeight: 24, color: colors.gray, textAlign: 'center' },
   search: { height: 52, borderRadius: 26, borderWidth: 1.5, borderColor: colors.ink, backgroundColor: colors.white, paddingHorizontal: 20, fontFamily: fonts.body, fontSize: 16, color: colors.ink, marginBottom: 14 },

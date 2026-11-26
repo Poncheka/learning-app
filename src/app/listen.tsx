@@ -6,6 +6,7 @@ import { AppState, Pressable, ScrollView, StyleSheet, Text, View } from 'react-n
 import { CardArt, pickBackgrounds } from '@/components/covers';
 import type { CardBackground } from '@/components/cardBackgrounds';
 import { NowPlayingBar } from '@/components/NowPlayingBar';
+import { ProfileBadge } from '@/components/ProfileBadge';
 import { SwipeAway } from '@/components/SwipeAway';
 import { Em, Icon, OutlineButton, Screen, Serif, TabBar, Wordmark } from '@/components/ui';
 import type { Topic } from '@/lib/api';
@@ -90,6 +91,7 @@ export default function Listen() {
     <Screen flush>
       <View style={styles.top}>
         <Wordmark />
+        <ProfileBadge />
       </View>
       <Serif size={40} style={styles.question}>
         Get lost in <Em>something.</Em>

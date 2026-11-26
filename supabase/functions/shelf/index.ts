@@ -8,6 +8,9 @@
 // POST { action: "propose" }                     think up the next topics, from tags and from taste.
 // POST { action: "tag", lesson_id }              the interest a lesson grew out of, if known.
 // POST { action: "voice" } / { action: "set_voice", voice }   the narrator, and choosing another.
+// POST { action: "profile" }                      the listener's first name and picture.
+// POST { action: "set_profile", first_name?, avatar_path? }   change either.
+// POST { action: "avatar_upload" }                a one-time address to upload a new picture to.
 //
 // The learning loop lives in "propose". It reads what the listener loved, what they turned
 // down and what they swiped away, and asks for topics that lean toward the first and away
@@ -112,7 +115,7 @@ const service = createClient(Deno.env.get("SUPABASE_URL") ?? "", SECRET_KEY, {
 // Each person's own things are read and written as that person, so the database itself
 // keeps accounts apart. Stories are the server's, and are shared. See the lesson function.
 const who = new AsyncLocalStorage<Record<string, unknown>>();
-const OWN = new Set(["interests", "signals", "lessons", "segments", "dismissals", "user_settings", "wants"]);
+const OWN = new Set(["interests", "signals", "lessons", "segments", "dismissals", "user_settings", "wants", "profiles"]);
 const mine = (): any => (who.getStore() as any)?.client ?? service;
 const me = (): string | null => ((who.getStore() as any)?.user_id as string | undefined) ?? null;
 const db = {
@@ -581,5 +584,45 @@ async function handle(req: Request): Promise<Response> {
     return json({ ok: true });
   }
 
+  if (body.action === "profile") return json(await profile());
+
+  if (body.action === "set_profile") {
+    const change: Record<string, unknown> = { user_id: me(), updated_at: new Date().toISOString() };
+    if (body.first_name !== undefined) {
+      // A first name, as it would be said aloud: one or two words, no more than 40 letters.
+      const name = String(body.first_name ?? "").replace(/\s+/g, " ").trim().slice(0, 40);
+      if (!name) return json({ error: "Give a name." }, 400);
+      change.first_name = name;
+    }
+    if (body.avatar_path !== undefined) {
+      // Only a picture this person uploaded, in their own folder.
+      const path = body.avatar_path === null ? null : String(body.avatar_path);
+      if (path !== null && !path.startsWith(`${me()}/`)) return json({ error: "That picture is not yours." }, 400);
+      change.avatar_path = path;
+    }
+    const { error } = await db.from("profiles").upsert(change, { onConflict: "user_id" });
+    if (error) return json({ error: "Your profile could not be saved.", detail: error.message }, 500);
+    return json(await profile());
+  }
+
+  if (body.action === "avatar_upload") {
+    // Each picture gets a new name, so the old one never shows from a cache after a change.
+    const path = `${me()}/${Date.now()}.jpg`;
+    const { data, error } = await service.storage.from("avatars").createSignedUploadUrl(path);
+    if (error || !data) return json({ error: "The picture could not be uploaded.", detail: error?.message }, 500);
+    return json({ path, url: data.signedUrl });
+  }
+
   return json({ error: "Unknown action." }, 400);
+}
+
+/** The listener's first name and a link to their picture, good for a week. */
+async function profile(): Promise<{ first_name: string | null; avatar_url: string | null }> {
+  const { data } = await db.from("profiles").select("first_name, avatar_path").eq("user_id", me()).maybeSingle();
+  let avatar_url: string | null = null;
+  if (data?.avatar_path) {
+    const { data: link } = await service.storage.from("avatars").createSignedUrl(data.avatar_path, 7 * 86400);
+    avatar_url = link?.signedUrl ?? null;
+  }
+  return { first_name: data?.first_name ?? null, avatar_url };
 }

@@ -4,7 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 
 import { NowPlayingBar } from '@/components/NowPlayingBar';
-import { Em, Eyebrow, Icon, OutlineButton, RoundButton, Screen, Serif, TabBar, Wordmark } from '@/components/ui';
+import { ProfileBadge } from '@/components/ProfileBadge';
+import { Em, Eyebrow, Icon, RoundButton, Screen, Serif, TabBar, Wordmark } from '@/components/ui';
 import { addInterest, getInterests, removeInterest, type Interests as InterestsData } from '@/lib/api';
 import { colors, fonts, gutter } from '@/theme';
 
@@ -68,7 +69,7 @@ export default function Interests() {
               <Icon name="back" size={22} />
             </RoundButton>
             <Wordmark />
-            <OutlineButton label="Settings" height={40} textSize={14} style={{ paddingHorizontal: 16 }} onPress={() => router.push('/settings')} />
+            <ProfileBadge />
           </View>
           <Serif size={38} style={{ marginTop: 18, paddingRight: 6 }}>
             What are you <Em>into?</Em>

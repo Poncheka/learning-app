@@ -573,10 +573,12 @@ async function narrator(owner?: string | null, segments?: any[], topicId?: strin
   const direction = await setting("narrator_direction", VOICE_STYLE);
   const begun = (segments ?? []).find((s) => s.status === "ready" && typeof s.voice === "string" && s.voice);
   const fromOpenai = begun && VOICES.includes(begun.voice) ? begun.voice : null;
-  if (!fromOpenai && ELEVEN_KEY && (await setting("narrator_engine", "openai")) === "eleven") {
+  // The OpenAI voices are retired. A story begun in one is finished in an ElevenLabs voice, and its
+  // earlier chapters are recorded again in that voice when they are next played (streamSegment).
+  if (ELEVEN_KEY && (await setting("narrator_engine", "openai")) === "eleven") {
     const voices = await elevenVoices();
     // A story already begun in one of these voices keeps it. A new story takes the next voice in turn.
-    const kept = begun ? voices.find((v) => v.name === begun.voice) : null;
+    const kept = begun && !fromOpenai ? voices.find((v) => v.name === begun.voice) : null;
     const open = voices.filter((v) => v.on);
     const pool = open.length > 0 ? open : voices;
     // Chosen by the story, not the lesson, so every length of a story, and its opening recorded ahead, share one voice.
@@ -838,9 +840,9 @@ async function speech(text: string, voice: string, direction: string): Promise<R
     });
     if (!res.ok) {
       const detail = (await res.text()).slice(0, 400);
-      // Out of credit, or the key no longer works: go back to the OpenAI narrator until someone looks.
+      // Out of credit, or the key no longer works. The OpenAI voices are retired, so there is no
+      // falling back to them: the chapter fails, and a note says why, for whoever looks.
       if (res.status === 401 || res.status === 402 || /quota|credit|payment/i.test(detail)) {
-        await service.from("settings").upsert({ key: "narrator_engine", value: "openai" }).then(() => {}, () => {});
         await service.from("settings").upsert({ key: "narrator_engine_note", value: `${new Date().toISOString()} ElevenLabs refused: ${res.status} ${detail}`.slice(0, 500) }).then(() => {}, () => {});
       }
       throw new Problem(502, "ElevenLabs failed while voicing the chapter.", `${res.status}: ${detail}`);
@@ -1699,7 +1701,7 @@ async function openingStep(): Promise<boolean> {
   for (const t of (await unplayedTopics()).slice(0, 6)) {
     if (t.opening_audio_path || typeof t.opening_script !== "string" || !t.opening_script.trim()) continue;
     // Already recorded for someone's lesson of this story, so a tap will use that.
-    const { data: had } = await service.from("segments").select("id, lessons!inner(topic_id)").eq("position", 1).eq("status", "ready").eq("lessons.topic_id", t.id).limit(1).maybeSingle();
+    const { data: had } = await service.from("segments").select("id, lessons!inner(topic_id)").eq("position", 1).eq("status", "ready").eq("lessons.topic_id", t.id).not("voice", "in", `(${VOICES.join(",")})`).limit(1).maybeSingle();
     if (had) continue;
     const { voice, direction } = await narrator(me(), undefined, t.id);
     const model = await voiceModel(voice);
@@ -2178,7 +2180,7 @@ async function start(topicId: string, minutes: number) {
     if (theirs.length !== lengths.length) continue;
     const run: any[] = [];
     for (const s of theirs) {
-      if (s.position !== run.length + 1 || s.status !== "ready" || !s.audio_path || !s.script || !(run.length ? s.voice === run[0].voice : s.voice === voiceNow || (!newcomer && s.voice === "cedar") || lendable.has(s.voice)) || s.title !== chosen[run.length].title || !sameBeats(s.blueprint, chosen[run.length])) break;
+      if (s.position !== run.length + 1 || s.status !== "ready" || !s.audio_path || !s.script || !(run.length ? s.voice === run[0].voice : s.voice === voiceNow || lendable.has(s.voice)) || s.title !== chosen[run.length].title || !sameBeats(s.blueprint, chosen[run.length])) break;
       run.push(s);
     }
     if (run.length > lent.length) lent = run;
@@ -2192,12 +2194,13 @@ async function start(topicId: string, minutes: number) {
     .eq("position", 1)
     .eq("status", "ready")
     .eq("lessons.topic_id", topic.id);
-  if (newcomer) openingAsk = openingAsk.in("voice", [...lendable]);
+  // The old OpenAI voices are retired: an opening recorded in one is never used again.
+  if (lendable.size > 0) openingAsk = openingAsk.in("voice", [...lendable]);
   const { data: voicedBefore } = await openingAsk.limit(1).maybeSingle();
   // Failing that, the opening may have been recorded ahead, while the story sat on the Listen tab.
   const voiced: any =
     voicedBefore ??
-    (topic.opening_audio_path && !(newcomer && !lendable.has(topic.opening_voice))
+    (topic.opening_audio_path && !(lendable.size > 0 && !lendable.has(topic.opening_voice))
       ? { audio_path: topic.opening_audio_path, voice: topic.opening_voice, voice_model: topic.opening_voice_model, shape: topic.opening_shape, duration_sec: topic.opening_seconds }
       : null);
 
@@ -2512,6 +2515,28 @@ async function scriptOnly(lessonId: string, position: number) {
 }
 
 /**
+ * The OpenAI voices are retired. A chapter recorded in one is recorded again in the story's
+ * ElevenLabs voice the next time anyone plays it, and every chapter that shared the old file, in
+ * any lesson, plays the new one from then on. While ElevenLabs is not the narrator, the old file plays.
+ */
+async function revoiceRetired(lesson: any, segments: any[], segment: any): Promise<any> {
+  const { voice, direction } = await narrator(lesson.user_id, segments, lesson.topic_id);
+  if (VOICES.includes(voice)) return segment;
+  const audio = await speakAll(segment.script, voice, direction);
+  const path = `${segment.lesson_id}/${String(segment.position).padStart(2, "0")}-${voice}.mp3`;
+  const { error } = await db.storage.from(BUCKET).upload(path, audio, { contentType: "audio/mpeg", upsert: true });
+  if (error) throw new Problem(500, "The audio could not be saved.", error.message);
+  mark({ lesson_id: segment.lesson_id, position: segment.position });
+  const sound = mp3Shape(audio);
+  const model = await voiceModel(voice);
+  await record({ kind: "voice", step: "re-recording a retired voice", model, voice, chars: segment.script.length, audio_bytes: audio.length, audio_seconds: mp3Seconds(audio) });
+  const fresh = { audio_path: path, voice, voice_model: model, shape: sound?.shape ?? "", duration_sec: sound ? Math.round(sound.seconds) : null };
+  await service.from("segments").update(fresh).eq("audio_path", segment.audio_path);
+  await service.from("site_samples").update({ audio_path: path }).eq("audio_path", segment.audio_path).then(() => {}, () => {});
+  return { ...segment, ...fresh };
+}
+
+/**
  * Sends a chapter's audio to the listener while it is still being generated, and saves a
  * copy as it goes by. If the listener leaves partway, the copy is still finished and saved.
  */
@@ -2519,6 +2544,7 @@ async function streamSegment(lessonId: string, position: number): Promise<Respon
   const { lesson, segments, segment: first } = await load(lessonId, position);
   let segment = first;
   const saved = async (s: any) => Response.redirect((await link(s.audio_path)) ?? "", 302);
+  if (segment.status === "ready" && VOICES.includes(segment.voice) && segment.script) return await saved(await revoiceRetired(lesson, segments, segment));
   if (segment.status === "ready") return await saved(segment);
 
   let mine = await claim(segment);

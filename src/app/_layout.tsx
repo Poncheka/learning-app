@@ -90,6 +90,7 @@ export default function RootLayout() {
         <Stack.Screen name="check-email" options={{ gestureEnabled: false }} />
         <Stack.Screen name="link-expired" options={{ gestureEnabled: false }} />
         <Stack.Screen name="auth" options={{ animation: 'none' }} />
+        <Stack.Screen name="your-name" options={{ animation: 'fade', gestureEnabled: false }} />
         <Stack.Screen name="first-interests" options={{ animation: 'fade', gestureEnabled: false }} />
         <Stack.Screen name="listen" options={{ animation: 'fade' }} />
         <Stack.Screen name="library" options={{ animation: 'fade' }} />

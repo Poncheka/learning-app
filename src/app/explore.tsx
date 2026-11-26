@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Animated, AppState, LayoutAnimation, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { CoverTile } from '@/components/covers';
+import { ProfileBadge } from '@/components/ProfileBadge';
 import { NowPlayingBar } from '@/components/NowPlayingBar';
 import { SwipeAway } from '@/components/SwipeAway';
 import { Em, Icon, Screen, Serif, TabBar, Wordmark } from '@/components/ui';
@@ -120,9 +121,12 @@ export default function Explore() {
     <Screen flush>
       <View style={styles.top}>
         <Wordmark />
-        <Pressable accessibilityRole="link" onPress={() => router.push('/interests')} hitSlop={12}>
-          <Text style={styles.editText}>Edit interests</Text>
-        </Pressable>
+        <View style={styles.topRight}>
+          <Pressable accessibilityRole="link" onPress={() => router.push('/interests')} hitSlop={12}>
+            <Text style={styles.editText}>Edit interests</Text>
+          </Pressable>
+          <ProfileBadge />
+        </View>
       </View>
       <Serif size={40} style={styles.heading}>
         Pick what comes <Em>next.</Em>
@@ -193,6 +197,7 @@ export default function Explore() {
 
 const styles = StyleSheet.create({
   top: { paddingHorizontal: gutter, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  topRight: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   heading: { marginHorizontal: gutter, marginTop: 18, marginBottom: 14 },
   chips: { flexGrow: 0 },
   chipRow: { paddingHorizontal: gutter, gap: 8 },
