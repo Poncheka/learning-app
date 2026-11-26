@@ -92,3 +92,21 @@ input{font-family:inherit}
 .missing{padding:60px 24px;text-align:center}
 .missing h1{font-size:40px;font-weight:400;margin:24px 0 12px}
 @media (min-width:700px){.sent{font-size:52px}.cover{width:280px;height:280px}}
+
+/* The chapters, folded under the player until opened */
+.top-right{display:flex;align-items:center;gap:10px}
+.round{width:40px;height:40px;border-radius:50%;border:1.5px solid var(--ink);background:#fff;display:flex;align-items:center;justify-content:center;padding:0}
+.chapters{margin-top:22px}
+.chapters-head{width:100%;min-height:56px;border:1.5px solid var(--ink);background:none;display:flex;align-items:center;gap:12px;padding:0 18px;text-align:left}
+.chapters-head .eyebrow{flex:none}
+.chapter-now{flex:1;min-width:0;font-size:16px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.chapters-head[aria-expanded="true"] .chev{transform:rotate(180deg)}
+.chapter-list{list-style:none;margin:16px 0 0;padding:0;border:1.5px solid var(--ink)}
+.chapter-list li + li{border-top:1px solid var(--line)}
+.chapter-list button{width:100%;min-height:56px;border:0;background:#fff;display:flex;align-items:center;gap:16px;padding:12px 18px;text-align:left;font-size:16px}
+.chapter-list button[disabled]{cursor:default;color:var(--gray)}
+.chapter-list .n{font-family:'Space Grotesk',sans-serif;font-weight:700;width:14px;flex:none}
+.chapter-list .t{flex:1;min-width:0}
+.chapter-list .d{flex:none;font-size:14px;color:var(--gray)}
+.chapter-list .on button{background:var(--yellow);font-weight:600}
+.chapter-list .on .d{color:var(--ink);font-weight:600}

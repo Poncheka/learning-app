@@ -84,7 +84,45 @@
     $('fill').style.width = pct + '%';
     $('bar').setAttribute('aria-valuenow', String(Math.round(pct)));
     $('left').textContent = finished ? 'Finished' : clock(seconds() - done) + ' left';
+    paintChapters();
   }
+
+  // ---------- Chapters ----------
+
+  var drawn = '';
+  function paintChapters() {
+    var list = story.chapters;
+    $('chapter-count').textContent = 'Chapter ' + (at + 1) + ' of ' + list.length;
+    $('chapter-now').textContent = list[at] ? list[at].title : '';
+    // Redrawn only when something it shows has changed, not on every tick of the clock.
+    var key = at + '|' + (wanted ? 1 : 0) + '|' + list.map(function (c) { return c.ready ? 1 : 0; }).join('');
+    if (key === drawn) return;
+    drawn = key;
+    var ol = $('chapter-list');
+    ol.innerHTML = '';
+    list.forEach(function (c, i) {
+      var li = document.createElement('li'), b = document.createElement('button');
+      if (i === at) li.className = 'on';
+      b.type = 'button';
+      b.disabled = !c.ready;
+      var n = document.createElement('span'); n.className = 'n'; n.textContent = String(i + 1);
+      var t = document.createElement('span'); t.className = 't'; t.textContent = c.title;
+      var d = document.createElement('span'); d.className = 'd';
+      d.textContent = i === at ? (wanted ? 'Playing' : 'Paused') : c.ready ? Math.max(1, Math.round(c.seconds / 60)) + ' min' : 'Coming';
+      b.append(n, t, d);
+      b.addEventListener('click', function () {
+        if (!c.ready) return;
+        finished = false; wanted = true;
+        playChapter(i);
+      });
+      li.append(b); ol.append(li);
+    });
+  }
+  $('chapters-toggle').addEventListener('click', function () {
+    var open = $('chapter-list').hidden;
+    $('chapter-list').hidden = !open;
+    $('chapters-toggle').setAttribute('aria-expanded', open ? 'true' : 'false');
+  });
 
   function playChapter(i) {
     var chapter = story.chapters[i];
@@ -185,6 +223,13 @@
     var data = { title: story.title + '. A story from Pliny', url: myLink() };
     if (navigator.share) navigator.share(data).catch(function () {});
     else navigator.clipboard.writeText(myLink()).then(function () { toast('Link copied'); });
+  });
+  // Passing the story on from the page: the link names nobody, unless this visitor has joined
+  // and has a code of their own, so the next person does not see "Jeff sent you a story".
+  $('share-top').addEventListener('click', function () {
+    var data = { title: story.title + '. A story from Pliny', url: myLink() };
+    if (navigator.share) navigator.share(data).catch(function () {});
+    else navigator.clipboard.writeText(myLink()).then(function () { toast('Link copied'); }, function () { prompt('Copy the link', myLink()); });
   });
   $('copy').addEventListener('click', function () {
     navigator.clipboard.writeText(myLink()).then(function () { toast('Link copied'); }, function () { prompt('Copy your link', myLink()); });

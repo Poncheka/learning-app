@@ -40,7 +40,10 @@
 <main class="page" id="player" hidden>
   <header class="top">
     <a href="/" class="logo">pliny.</a>
-    <a href="#join" class="pill" id="to-join">Join waitlist</a>
+    <div class="top-right">
+      <button class="round" id="share-top" type="button" aria-label="Share this story"><svg width="18" height="22" viewBox="0 0 18 22" aria-hidden="true"><path d="M9 14V2M4 6l5-5 5 5M2 11v9h14v-9" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <a href="#join" class="pill" id="to-join">Join waitlist</a>
+    </div>
   </header>
   <section class="now">
     <p class="eyebrow" id="sent-by" hidden></p>
@@ -60,6 +63,14 @@
         <div class="bar" role="progressbar" aria-label="How far through the story" aria-valuemin="0" aria-valuemax="100" id="bar"><i id="fill"></i></div>
         <div class="left" id="left">Starting</div>
       </div>
+    </div>
+    <div class="chapters" id="chapters">
+      <button class="chapters-head" id="chapters-toggle" type="button" aria-expanded="false" aria-controls="chapter-list">
+        <span class="eyebrow" id="chapter-count">Chapter 1</span>
+        <span class="chapter-now" id="chapter-now"></span>
+        <svg class="chev" width="18" height="12" viewBox="0 0 18 12" aria-hidden="true"><path d="M2 2l7 7 7-7" fill="none" stroke="#17191B" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <ol class="chapter-list" id="chapter-list" hidden></ol>
     </div>
     <p class="waiting" id="waiting" hidden>The rest of this story is still being finished. It carries on by itself in a minute or two.</p>
   </section>

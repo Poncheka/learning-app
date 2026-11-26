@@ -24,9 +24,15 @@ export const useLibrary = create<LibraryState>((set, get) => ({
   load: () => {
     set({ error: null });
     // Interests are read alongside, so a playlist is made only for the ones still chosen.
-    getInterests()
-      .then((found) => set({ tags: found.interests.map((t) => t.label) }))
-      .catch(() => {});
+    // If that read fails, as it can right after the app opens, it is tried again a few times rather
+    // than leaving the Library with only Everything and Liked until the screen is opened again.
+    const readTags = (left: number) =>
+      getInterests()
+        .then((found) => set({ tags: found.interests.map((t) => t.label) }))
+        .catch(() => {
+          if (left > 0) setTimeout(() => readTags(left - 1), 1500);
+        });
+    readTags(3);
     listLessons()
       .then((lessons) => set({ lessons }))
       .catch((err) => set({ error: err instanceof Error ? err.message : 'Your stories could not be loaded.' }));
