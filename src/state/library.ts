@@ -3,7 +3,7 @@
 import { create } from 'zustand';
 
 import { getInterests, hideLesson, listLessons, type LessonSummary, sendSignal } from '@/lib/api';
-import { usePlayer } from '@/state/player';
+import { STING_SECONDS, usePlayer } from '@/state/player';
 
 type LibraryState = {
   lessons: LessonSummary[] | null;
@@ -79,10 +79,10 @@ export function playOne(lesson: LessonSummary) {
   usePlayer.getState().resume(lesson);
 }
 
-// When a story ends and another is lined up, it starts after the closing sound has had a moment.
+// When a story ends and another is lined up, it starts once the closing sound has played out.
 usePlayer.subscribe((now, before) => {
   if (now.phase !== 'finished' || before.phase === 'finished' || upNext.length === 0) return;
   const next = upNext[0];
   upNext = upNext.slice(1);
-  setTimeout(() => usePlayer.getState().resume(next), 2500);
+  setTimeout(() => usePlayer.getState().resume(next), STING_SECONDS * 1000 + 300);
 });

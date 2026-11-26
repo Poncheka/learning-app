@@ -17,6 +17,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { sameSubject } from "./subject.ts";
 
 const OPENAI_KEY = Deno.env.get("OPENAI_API_KEY") ?? "";
 const SCOUT_MODEL = Deno.env.get("OPENAI_SCOUT_MODEL") ?? "gpt-6-luna";
@@ -197,6 +198,8 @@ async function propose() {
   // proposes that matches an earlier subject or title is thrown out here.
   const plain = (t: unknown) => String(t ?? "").toLowerCase().replace(/\([^)]*\)/g, " ").replace(/[^a-z0-9]+/g, " ").replace(/^the /, "").trim();
   const offered = new Set((seen ?? []).flatMap((t) => [plain(t.asked), plain(t.title)]).filter(Boolean));
+  const { data: everySubject } = await service.from("topics").select("asked").limit(10000);
+  const subjects = (everySubject ?? []).map((t: any) => String(t.asked ?? "")).filter(Boolean);
   const { data: signals } = await db
     .from("signals")
     .select("type, created_at, lessons(id, title), topics(id, title)")
@@ -259,6 +262,9 @@ async function propose() {
         tag: labels.find((l) => l.toLowerCase() === String(t?.tag ?? "").trim().toLowerCase()) ?? (slots[i] && slots[i] !== "Off the map" ? slots[i] : "Off the map"),
       }))
       .filter((t) => t.title.length > 0 && !offered.has(plain(t.title)))
+      // The same subject under other words ("A pope put a dead pope on trial" and "The pope who put a
+      // dead pope on trial" are both the Cadaver Synod) is caught by the subject, across every topic.
+      .filter((t, i, all) => !subjects.some((s: string) => sameSubject(s, t.title)) && all.findIndex((o) => sameSubject(o.title, t.title)) === i)
       // In Explore every row is the same height, so a headline that would not fit is not offered.
       .filter((t) => !stocking || (t.card.length > 0 && t.card.length <= 56))
       .slice(0, batch);
@@ -347,10 +353,10 @@ async function popularInterests(): Promise<string[]> {
  * Finished stories in this person's interests that they have not heard, swiped away or picked
  * already, best first. Explore leads with these: they play at once and cost nothing to make.
  */
-async function madeForInterests(kept: Set<string>): Promise<{ id: string; title: string; tag: string | null; ready: true }[]> {
+async function madeForInterests(kept: Set<string>): Promise<{ id: string; asked: string; title: string; tag: string | null; ready: true }[]> {
   if (kept.size === 0) return [];
   const [{ data }, heard, gone, picked, scored] = await Promise.all([
-    service.from("topics").select("id, title, tag, proposed_for, prepared_at").eq("status", "ready").not("tag", "is", null).order("prepared_at", { ascending: false }).limit(1000),
+    service.from("topics").select("id, asked, title, tag, proposed_for, prepared_at").eq("status", "ready").not("tag", "is", null).order("prepared_at", { ascending: false }).limit(1000),
     service.from("lessons").select("topic_id").eq("user_id", me()).limit(2000),
     service.from("dismissals").select("topic_id").eq("user_id", me()).limit(2000),
     service.from("wants").select("topic_id").eq("user_id", me()).limit(2000),
@@ -363,23 +369,41 @@ async function madeForInterests(kept: Set<string>): Promise<{ id: string; title:
     .filter((t) => (scored.get(t.id)?.score ?? 0) >= 0)
     .map((t, i) => ({ t, i, score: scored.get(t.id)?.score ?? 0 }))
     .sort((a, b) => b.score - a.score || a.i - b.i)
-    .slice(0, 20)
-    .map(({ t }) => ({ id: t.id, title: t.title, tag: t.tag ?? null, ready: true as const }));
+    .slice(0, 40)
+    .map(({ t }) => ({ id: t.id, asked: String(t.asked ?? ""), title: t.title, tag: t.tag ?? null, ready: true as const }));
+}
+
+/** The subjects of every story this person has heard, swiped away, picked, or thrown out as an idea. */
+async function doneSubjects(): Promise<string[]> {
+  const [heard, gone, picked, binned] = await Promise.all([
+    service.from("lessons").select("topics(asked)").eq("user_id", me()).limit(2000),
+    service.from("dismissals").select("topics(asked)").eq("user_id", me()).limit(2000),
+    service.from("wants").select("topics(asked)").eq("user_id", me()).limit(2000),
+    service.from("topics").select("asked").eq("proposed_for", me()).eq("status", "hidden").limit(2000),
+  ]);
+  return [...(heard.data ?? []), ...(gone.data ?? []), ...(picked.data ?? [])]
+    .map((r: any) => String(r.topics?.asked ?? ""))
+    .concat((binned.data ?? []).map((t: any) => String(t.asked ?? "")))
+    .filter(Boolean);
 }
 
 async function ideas() {
-  const { data } = await service.from("topics").select("id, title, tag").eq("proposed_for", me()).eq("status", "proposed").is("queued_at", null).order("proposed_at", { ascending: false }).limit(40);
+  const { data } = await service.from("topics").select("id, asked, title, tag").eq("proposed_for", me()).eq("status", "proposed").is("queued_at", null).order("proposed_at", { ascending: false }).limit(40);
   const state = await queueState();
   // The chips in Explore are the person's interests as they stand now. An idea from an interest
   // they have since removed is no longer offered.
   const { data: tags } = await service.from("interests").select("label").eq("hidden", false).eq("user_id", me()).order("created_at");
   const labels = (tags ?? []).map((t: any) => String(t.label));
   const kept = new Set<string>(labels.map((l: string) => l.toLowerCase()));
-  const made = await madeForInterests(kept).catch(() => []);
+  const made = (await madeForInterests(kept).catch(() => [])).filter((t, i, all) => all.findIndex((o) => sameSubject(o.asked, t.asked)) === i);
+  // Subjects this person has already heard, swiped away, picked or turned down, under any title.
+  const done = await doneSubjects();
   return {
     tags: labels,
     // Finished stories first, the best liked and most heard at the top. Then ideas still to be made.
-    ideas: [...made, ...(data ?? []).filter((t: any) => String(t.title).length <= 60).filter((t: any) => !t.tag || t.tag === "Off the map" || kept.has(String(t.tag).toLowerCase())).map((t: any) => ({ id: t.id, title: t.title, tag: t.tag ?? null }))],
+    ideas: [...made.slice(0, 20), ...(data ?? []).filter((t: any) => String(t.title).length <= 60).filter((t: any) => !t.tag || t.tag === "Off the map" || kept.has(String(t.tag).toLowerCase())).map((t: any) => ({ id: t.id, asked: String(t.asked ?? ""), title: t.title, tag: t.tag ?? null }))]
+      .filter((t: any, i: number, all: any[]) => !done.some((d) => sameSubject(d, t.asked || t.title)) && all.findIndex((o: any) => sameSubject(o.asked || o.title, t.asked || t.title)) === i)
+      .map(({ asked: _asked, ...t }: any) => t),
     queued_today: state.today,
     opens_at: state.opens_at,
     per_day: QUEUE_PER_DAY,

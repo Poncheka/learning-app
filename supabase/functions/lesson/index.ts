@@ -39,7 +39,8 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { type Chapter, chapterLengths, fullMinutes, isBlueprint, pickChapters } from "./plan.ts";
+import { STORY_BRIEF_TEXT } from "./house-style.ts";
+import { type Chapter, chapterLengths, fullMinutes, hasBeats, isBlueprint, keepCorrection, keepRevision, minutesOf, pickChapters, previousTelling, readingRate, revisePremise, sameSubject, tellStory } from "./plan.ts";
 
 declare const EdgeRuntime: { waitUntil(promise: Promise<unknown>): void };
 
@@ -65,6 +66,9 @@ const BUCKET = "lesson-audio";
 const WIKI_AGENT = "LearningApp/0.1 (personal project; https://github.com/Poncheka/learning-app)";
 const MAX_SOURCES = 5;
 const SOURCE_CHARS = 14000;
+// The research budget, MAX_SOURCES x SOURCE_CHARS, shared: more for the two core articles, less for the rest.
+const CORE_CHARS = 18000;
+const SIDE_CHARS = 11000;
 // A chapter is voiced in a single request, because each request is a fresh performance and
 // the narrator audibly shifts between them. The voice model takes about 2,000 tokens at a
 // time, which is why no chapter is planned longer than six minutes. Splitting is only a
@@ -92,19 +96,15 @@ const SCOUT_BRIEF =
   "You help research an audio lesson. Name the English Wikipedia articles that would give the richest " +
   "material for the topic: one or two core articles, then narrower ones where the story lives. Look for " +
   "the people behind it, the argument over it, what it cost and what it changed, and any strange episode " +
-  "along the way, not only the thing itself. " +
+  "along the way, not only the thing itself. Choose articles that develop the central people, the turning " +
+  "points and the main question. Do not choose an article about a side subject, such as a band, a building, " +
+  "a company or a later film about it, only because it is long: it would crowd out the story itself. " +
   "Use real article titles. Reply with only a JSON array of five strings.";
 
-// The house view of what makes a lesson interesting. This is only the fallback: the live
-// wording is the story_brief row in the settings table, which Jeff edits by ear.
-const STORY_BRIEF =
-  "Tell it like the best dinner-table storyteller you know, not like an encyclopedia. Find the angle first: " +
-  "the question that makes someone lean in. Why did anyone want this? Who thought it was madness, and why " +
-  "were they almost right? What was at stake, who paid for it, who got rich, who got hurt? What did it " +
-  "change that we still live with? What is the strangest true thing about it? Lead with people, motives, " +
-  "conflict and consequences. Describe how something was physically done only when the how is itself " +
-  "astonishing, and then give it as one clear picture, not a procedure. Skip anything a listener could have " +
-  "guessed. About once a minute the listener should think: wait, really?";
+// The house view of what makes a lesson interesting. The live wording is the story_brief row in the
+// settings table, which is the source of truth and can be changed without a redeploy. This copy is
+// kept word for word the same, so that if the row is ever missing nothing changes. Edit both together.
+const STORY_BRIEF = STORY_BRIEF_TEXT;
 
 const plannerBriefV1 = (story: string) =>
   "You are the story editor and narrative architect for Pliny, which tells short true stories aloud to one " +
@@ -136,14 +136,16 @@ const plannerBriefV1 = (story: string) =>
   "discoveries that carry the story, the final payoff, and the research you are deliberately leaving out. " +
   "Sort what you found into three piles. Essential: needed to follow the story. Texture: unusual, funny or " +
   "vivid details that are not strictly needed but give the story personality and surprise. Tangent: accurate " +
-  "but dull, or a detour that stalls the story. Keep the essential and the texture. Cut only the tangents. " +
+  "but dull, or a detour that stalls the story. Keep the essential. Keep texture that is short and vivid and " +
+  "sits inside a beat that moves the story; cut texture that would need time of its own. Cut every tangent. " +
   "The aim is economy, not sterility.\n\n" +
   "STEP 3, CHAPTER BLUEPRINT. Build the story in three movements: intrigue, then discovery and complication, " +
   "then payoff. Order it by what is most gripping while staying clear about cause and effect. Never use " +
   "chronological or encyclopedic order just because the sources do. Do not resolve the central question " +
   "early. Put the best anecdote where it does the most work, not buried late.\n" +
-  `Write an opening and then two to ${OUTLINE_CHAPTERS - 1} chapters. Use as many chapters as the material can ` +
-  "carry and no more: do not pad a thin story, and do not squeeze a rich one down to a summary.\n" +
+  `Write an opening and then two to ${OUTLINE_CHAPTERS - 1} chapters. Use as many chapters as the story needs ` +
+  "and no more: a chapter earns its place by changing something for the listener, not because the notes have " +
+  "more to say. Do not pad a thin story, and do not squeeze a rich one down to a summary.\n" +
   "The opening is a chapter of its own and runs one minute. It is a hook that delivers, never a teaser: its " +
   "first two sentences are the most extraordinary concrete moment of the angle you chose, it gives just " +
   "enough context to follow, it hands the listener one real discovery inside the minute, and it ends by " +
@@ -252,6 +254,11 @@ const plannerBrief = (story: string, engine = 1) =>
             "mechanism or piece of context that moves the story on and gets a few good sentences. \"connective\": " +
             "background needed only for clarity, which gets a line. Do not give mundane background and an " +
             "extraordinary reversal the same weight. Give each beat the ids of the notes it is told from.\n" +
+            "ESSENTIAL. Number the signature beats that define the story by importance in \"essential\": 1 for the " +
+            "moment the story turns on, such as a death, a discovery, a downfall or a verdict, then 2, 3 and at most 4. " +
+            "Mark every other signature beat false. A shorter telling takes these moments in that order, tells each " +
+            "in full before taking the next, and lets everything else go, so a short telling is a narrower story, " +
+            "not a list of highlights. Aftermath or legacy is ranked high only if it is the point of the story.\n" +
             "THE CHAPTER AFTER THE OPENING is the one most likely to lose a listener. It must begin with a new " +
             "development, something the opening did not contain, and move the story toward the central question. It " +
             "never retells or re-describes the opening's moment, and it shares no beat and no note with the opening. " +
@@ -271,7 +278,7 @@ const plannerBrief = (story: string, engine = 1) =>
         )
         .replace(
           '"transition": "the question this naturally raises next, or empty", ',
-          '"beats": [{"beat": "what happens or is found out", "weight": "signature", "fact_ids": [1, 2, 3]}], ' +
+          '"beats": [{"beat": "what happens or is found out", "weight": "signature", "essential": 1, "fact_ids": [1, 2, 3]}], ' +
             '"ending": "revelation", "ending_note": "what the last line lands on", ',
         );
 
@@ -297,7 +304,18 @@ const REVIEWER_V2 =
   "and it must not retell the opening's moment or reuse its notes. If it does, give it different beats. " +
   "Do the endings vary? Only the opening and at most one other chapter may end on a question, and no two " +
   "chapters in a row end the same way. Return beats, ending and ending_note on every chapter, with the " +
-  "chapter's fact_ids covering all of its beats.\n\n";
+  "chapter's fact_ids covering all of its beats.\n\n" +
+  "Check the essential ranks. A shorter telling takes the story's moments in that order, as many as fit, so " +
+  "1 must be the moment the story turns on, and the few that follow must be what defines it, at most four. " +
+  "A death, a downfall or a discovery the story builds to ranks high. Aftermath, legacy and later recognition " +
+  "rank high only when they are the point of the story. Correct the ranks where they are wrong.\n\n" +
+  "You may also reject the premise. If the central question, the promise or the final payoff puts the " +
+  "emphasis on lesser material, such as what survived of something, when the notes support a stronger and " +
+  "more human story, rewrite them and rebuild the chapters around them. Stay with what the notes support. " +
+  "Do not sensationalize, and do not promise what the notes cannot deliver. To change them, add a \"story\" " +
+  "object beside the chapters with any of \"central_curiosity\", \"promise\", \"final_payoff\", " +
+  "\"core_fascination\" and \"mode\" (\"focused\" or \"broad\"), and a corrected title and hook if they " +
+  "no longer fit. If the premise is right, leave \"story\" out.\n\n";
 
 const REVIEWER_BRIEF =
   "You are the editorial reviewer for Pliny, which tells short true stories aloud. You are handed a story " +
@@ -315,10 +333,10 @@ const REVIEWER_BRIEF =
   "repeated, and is there background nobody needs? Does the last chapter answer the central question and " +
   "land an insight? Are the chapter titles concrete and inviting, or academic and generic?\n\n" +
   "Then fix what you find. You may reorder chapters, rewrite any field, retitle, move notes between " +
-  "chapters, change priorities and minutes, and strengthen the opening. Merge or cut a chapter only " +
-  "when nothing changes for the listener in it. Do not shrink the story just to be brief: entertaining " +
-  "detail that gives the story personality, humor or surprise stays, even when the explanation would " +
-  "survive without it. Cut boring tangents, not texture. Bring back a good unused note if it earns its " +
+  "chapters, change priorities and minutes, and strengthen the opening. Merge or cut a chapter when " +
+  "nothing changes for the listener in it, or when it only adds information. Keep a vivid detail that gives " +
+  "a beat its personality, humor or surprise. Cut material that only adds information, however interesting, " +
+  "when the story moves better without it. Bring back a good unused note if it earns its " +
   "place. Use only note ids that exist, each in one chapter. Keep the rules: the opening comes first, runs " +
   "one minute and delivers a real discovery of its own, every other chapter runs two to four minutes, and " +
   "the last chapter is the payoff. After any reordering, make 'needs' right again: for each chapter, the numbers of the " +
@@ -370,14 +388,17 @@ const writerBriefV2 = (story: string) =>
         "not reported: set up what was expected or at stake, bring in the obstacle or contradiction, give what was " +
         "done or found in a deliberate order, let the reveal land, then say what followed from it. Show the " +
         "listener why it is extraordinary instead of telling them that it is. A supporting beat gets a few good " +
-        "sentences. A connective beat gets a line. Summarizing a signature beat in two or three sentences is the " +
+        "sentences. A connective beat gets a line. A beat marked essential is part of the story's spine: tell it " +
+        "fully, even in a short telling, and when it is folded in from another part of the story give it the " +
+        "same weight here. Summarizing a signature beat in two or three sentences is the " +
         "worst mistake you can make here. Everything you use to develop a beat comes from its notes: when the " +
         "notes run out, the beat is finished.",
     )
     .replace(
       "The length you are given is a ceiling, not a quota. Stop when the chapter has done its job.",
-      "Length. You are given a range of words that the chapter's material was judged able to carry. Aim to land " +
-        "inside it by developing the signature beats fully. Spend the words on the best documented moments, and " +
+      "Length. You are given a range of words that the chapter's material was judged able to carry. It is a " +
+        "ceiling, not a quota: develop the signature beats fully, and stop when the chapter has done its job, " +
+        "even well short of the range. Spend the words on the best documented moments, and " +
         "take them from repeated explanation and context nobody needs. Never fill space by restating why " +
         "something matters or stretching sentences. If the notes truly cannot carry " +
         "the range, stop short: a shorter chapter that is all story beats a longer one with padding.\n\n" +
@@ -419,8 +440,8 @@ const CHECKER_V2 =
   "passage, a stock narrator phrase, talk of 'the notes', 'the extract' or 'the sources' themselves, or a stretch with no personality where the material invited some. " +
   "\"join\": the chapter does not follow on from the previous chapter's closing lines (a hard reset, a recap, " +
   "or a new name dropped in unexplained), or it starts on background. Quote the words, and say in " +
-  "one line what would fix it. A fix says what to put in the place of the weak words, drawn from the notes, " +
-  "not only what to remove: the aim is a better chapter, not a shorter one. Do not list small polish. If it " +
+  "one line what would fix it. A fix may simply cut the weak words, or replace them with something stronger " +
+  "from the notes: the aim is a better chapter, and a shorter one is fine. Do not list small polish. If it " +
   "reads well, list nothing.\n\n" +
   'Reply with only JSON: {"facts": [{"claim": "the words in the script", "problem": "what is wrong"}], ' +
   '"editorial": [{"kind": "summarized", "quote": "the words", "fix": "what to do"}]}';
@@ -877,7 +898,7 @@ async function wiki(params: Record<string, string>): Promise<any> {
 }
 
 /** Turns a guessed article name into a real page and its plain text, or null if there is none. */
-async function readArticle(guess: string): Promise<Source | null> {
+async function readArticle(guess: string, limit = SOURCE_CHARS): Promise<Source | null> {
   const found = await wiki({ action: "query", list: "search", srsearch: guess, srlimit: "1" });
   const title = found?.query?.search?.[0]?.title;
   if (!title) return null;
@@ -888,12 +909,12 @@ async function readArticle(guess: string): Promise<Source | null> {
   return {
     title: hit.title,
     url: `https://en.wikipedia.org/wiki/${encodeURIComponent(hit.title.replace(/ /g, "_"))}`,
-    text: text.slice(0, SOURCE_CHARS),
+    text: text.slice(0, limit),
   };
 }
 
 async function readArticles(guesses: string[]): Promise<Source[]> {
-  const results = await Promise.all(guesses.slice(0, MAX_SOURCES + 2).map((g) => readArticle(g).catch(() => null)));
+  const results = await Promise.all(guesses.slice(0, MAX_SOURCES + 2).map((g) => readArticle(g, CORE_CHARS).catch(() => null)));
   const seen = new Set<string>();
   const sources: Source[] = [];
   for (const source of results) {
@@ -901,7 +922,10 @@ async function readArticles(guesses: string[]): Promise<Source[]> {
     seen.add(source.title);
     sources.push(source);
   }
-  return sources.slice(0, MAX_SOURCES);
+  // The same budget as five articles of 14,000 characters, shared unevenly: the first two, the subject's
+  // own article and the closest one to it, are read further, because a long article can keep its
+  // turning point, often the death or the downfall, in its later sections. Side articles are read less.
+  return sources.slice(0, MAX_SOURCES).map((s, i) => ({ ...s, text: s.text.slice(0, i < 2 ? CORE_CHARS : SIDE_CHARS) }));
 }
 
 // ---------- Preparing a topic ahead of time ----------
@@ -965,6 +989,12 @@ function toChapters(raw: unknown, facts: Fact[]): Chapter[] {
           .map((b: any) => ({
             beat: text(b.beat),
             weight: WEIGHTS.includes(b.weight) ? b.weight : "supporting",
+            // Only a signature beat can be essential: a rank, 1 the most important, or false. Plans that do not say are judged by plan.ts.
+            ...(typeof b.essential === "number" && b.essential >= 1 && b.weight === "signature"
+              ? { essential: Math.min(9, Math.round(b.essential)) }
+              : typeof b.essential === "boolean"
+                ? { essential: b.essential && b.weight === "signature" }
+                : {}),
             fact_ids: (Array.isArray(b.fact_ids) ? b.fact_ids : []).map(Number).filter((id: number) => known.has(id)),
           })),
         ending: ENDINGS.includes(c.ending) ? c.ending : "",
@@ -983,10 +1013,22 @@ function blueprintLines(chapter: Chapter): string {
     `The turn: ${chapter.turn}`,
     `Why it matters: ${chapter.matters}`,
     chapter.tone ? `Tone: ${chapter.tone}` : "",
-    // In a shorter lesson, beats from chapters that are not played are folded in here.
+    // In a shorter telling, a chapter may be told with fewer beats than planned.
+    (chapter as any).compressed
+      ? "This is a shorter telling of this chapter. Tell only the beats listed below. Anything else the plan above " +
+        "mentions is left out on purpose. If a beat names a person, event or reason the listener has not heard, give " +
+        "it the few words of context needed to follow it, and no more."
+      : "",
+    // The essential moments of chapters that do not play on their own travel here as beats, still weighted.
+    (chapter as any).folded_from?.length
+      ? `This chapter also carries the essential moments of ${(chapter as any).folded_from.map((t: string) => `"${t}"`).join(" and ")}, ` +
+        "which are not played as chapters of their own in this telling. They are among the beats below, marked as " +
+        "folded in, in the order they happened. Give them their full weight: they are part of the story's spine."
+      : "",
+    // Left-out chapters with nothing essential in them are worked in briefly, so nothing is missing.
     (chapter as any).skipped?.length
       ? "This is a shorter telling, and the listener has NOT heard the following parts of the story. This chapter " +
-        `depends on them, so work each one in, ${chapter.beats?.length ? "with the room its importance deserves" : "in a sentence or two"}, as a natural part of the telling and not as ` +
+        "depends on them, so work each one in, in a sentence or two, as a natural part of the telling and not as " +
         `a recap:\n${(chapter as any).skipped.map((b: any) => `  - ${text(b?.short)}`).join("\n")}`
       : "",
   ]
@@ -1021,7 +1063,7 @@ const reviewerInput = (story: Story, facts: Fact[], outline: Chapter[], title: s
   (story.engine === 2 && title ? `Title: ${title}\nHook: ${hook}\n\n` : "") + `Story discovery:\n${JSON.stringify(story)}\n\nResearch notes:\n${facts.map((f) => `${f.id}. [${f.status ?? "fact"}] ${f.fact}`).join("\n")}\n\n` +
   `Chapter blueprint:\n${JSON.stringify(outline)}`;
 
-async function reviewPlan(story: Story, facts: Fact[], outline: Chapter[], title = "", hook = "", given?: string): Promise<{ outline: Chapter[]; review: Record<string, unknown>; title?: string; hook?: string }> {
+async function reviewPlan(story: Story, facts: Fact[], outline: Chapter[], title = "", hook = "", given?: string): Promise<{ outline: Chapter[]; review: Record<string, unknown>; title?: string; hook?: string; story?: Story }> {
   try {
     // A reply collected by an earlier request is used as it is. An empty one means the review could not be had.
     const reply = given ?? (await ask("reviewing the story plan", WRITER_MODEL, reviewerBrief(story), reviewerInput(story, facts, outline, title, hook), true));
@@ -1030,10 +1072,13 @@ async function reviewPlan(story: Story, facts: Fact[], outline: Chapter[], title
     const usable = revised.length >= 3 && revised.every((c) => c.fact_ids.length > 0);
     // A corrected title is taken only with the revised plan it was written for.
     const retitled = usable && story.engine === 2 ? text(verdict.title).slice(0, 80) : "";
+    // So is a revised premise: the central question, promise, payoff and mode, checked field by field.
+    const premise = usable && story.engine === 2 ? revisePremise(story, verdict.story) : { story, before: null };
     return {
       ...(retitled ? { title: retitled, hook: text(verdict.hook) || hook } : {}),
+      ...(premise.before ? { story: premise.story } : {}),
       outline: usable ? revised : outline,
-      review: { scores: verdict.scores ?? null, problems: verdict.problems ?? [], changes: verdict.changes ?? [], ...(retitled ? { retitled_from: title } : {}), applied: usable, chapters_before: outline.length, chapters_after: usable ? revised.length : outline.length, first_draft: outline.map((c) => `${c.title} (${c.minutes} min)`) },
+      review: { scores: verdict.scores ?? null, problems: verdict.problems ?? [], changes: verdict.changes ?? [], ...(retitled ? { retitled_from: title } : {}), ...(premise.before ? { premise_before: premise.before } : {}), applied: usable, chapters_before: outline.length, chapters_after: usable ? revised.length : outline.length, first_draft: outline.map((c) => `${c.title} (${c.minutes} min)`) },
     };
   } catch (err) {
     return { outline, review: { applied: false, skipped: err instanceof Problem ? err.message : String(err) } };
@@ -1086,6 +1131,20 @@ async function checkScript(
   return { script, summary, review };
 }
 
+// ---------- How fast the narrator reads ----------
+
+/**
+ * Words a minute the narrator reads, used to size each chapter's word range. Kept apart from choosing
+ * what a telling plays, so each can be checked on its own. With the reading_rate setting at "measured",
+ * it is the median of the voice's recent recordings (see readingRate in plan.ts). Otherwise it is the
+ * old fixed 150, which every voice actually reads faster than, so stories ran short of their length.
+ */
+async function speakingRate(voice: string): Promise<number> {
+  if ((await setting("reading_rate", "fixed")) !== "measured") return WORDS_PER_MINUTE;
+  const { data } = await service.from("segments").select("script, duration_sec").eq("voice", voice).eq("status", "ready").gte("duration_sec", 45).order("ready_at", { ascending: false }).limit(40);
+  return readingRate(voice, (data ?? []).map((s: any) => ({ words: wordCount(String(s.script ?? "")), seconds: Number(s.duration_sec) || 0 })));
+}
+
 // ---------- Engine 2: writing a chapter from its beats ----------
 
 const wordCount = (script: string) => script.split(/\s+/).filter(Boolean).length;
@@ -1096,7 +1155,8 @@ function beatLines(chapter: Chapter, notes: Fact[]): string {
   const lines = (chapter.beats ?? []).map((b, i) => {
     const mine = notesFor(notes, b.fact_ids ?? []);
     mine.forEach((f) => used.add(f.id));
-    return `${i + 1}. [${b.weight}] ${b.beat}\n${mine.map((f) => `   - [${f.status ?? "fact"}] ${f.fact} (from ${f.source})`).join("\n") || "   - no notes of its own"}`;
+    const label = [b.weight, (b as any).essential ? "essential" : "", (b as any).from_title ? `folded in from "${(b as any).from_title}"` : ""].filter(Boolean).join(", ");
+    return `${i + 1}. [${label}] ${b.beat}\n${mine.map((f) => `   - [${f.status ?? "fact"}] ${f.fact} (from ${f.source})`).join("\n") || "   - no notes of its own"}`;
   });
   const rest = notes.filter((f) => !used.has(f.id));
   return `Beats, in order:\n${lines.join("\n")}` + (rest.length ? `\n\nOther notes for this chapter:\n${noteLines(rest)}` : "");
@@ -1128,9 +1188,12 @@ async function writeChapter(o: {
   /** The closing lines of the chapter before this one. */
   before?: string;
   houseStyle: string;
+  /** How many words a minute the narrator reads. 150 unless the reading_rate setting is "measured". */
+  rate?: number;
 }): Promise<{ script: string; summary: string; review: Record<string, unknown> }> {
   // The range sits around the promised length, so a chapter that lands inside it runs about as long as promised.
-  const [low, high] = o.role === "opening" ? [125, 160] : [Math.round(o.minutes * WORDS_PER_MINUTE * 0.9), Math.round(o.minutes * WORDS_PER_MINUTE * 1.15)];
+  const rate = o.rate ?? WORDS_PER_MINUTE;
+  const [low, high] = o.role === "opening" ? [Math.round((125 * rate) / WORDS_PER_MINUTE), Math.round((160 * rate) / WORDS_PER_MINUTE)] : [Math.round(o.minutes * rate * 0.9), Math.round(o.minutes * rate * 1.15)];
   const WHOLE =
     "Hand back the whole chapter, and make sure it reads as one continuous telling when you are done: no sentence " +
     "left stranded on its own, no paragraph reduced to a single leftover fact, no reference to something you " +
@@ -1175,30 +1238,31 @@ async function writeChapter(o: {
     review.editorial = first.editorial;
     const under = wordCount(script) < low * 0.9;
     const over = wordCount(script) > high * 1.2;
-    if (first.facts.length || first.editorial.length || under || over) {
+    // Coming in short is not a reason to revise: a chapter that has done its job may finish early.
+    if (first.facts.length || first.editorial.length || over) {
       const fixed = splitReply(
         await ask(
           "revising the chapter",
           WRITER_MODEL,
           brief,
-          `${frame}\n\nHere is your draft:\n${script}\n\nAn editor read it. Make the chapter better, not shorter, and leave what already works alone. ` +
-            "Keep every signature beat fully told. Where the editor found repetition, padding or weak writing, do not simply delete: " +
-            "put something better in its place, a detail or development from the notes that the draft has not used yet. " +
-            `Only if the notes hold nothing more may a passage just go. ${WHOLE}\n` +
+          `${frame}\n\nHere is your draft:\n${script}\n\nAn editor read it. Make the chapter better, and leave what already works alone. ` +
+            "Keep every essential and signature beat fully told. Where the editor found repetition, padding or weak writing, cut it. " +
+            "If the notes hold a stronger detail that belongs there, you may use it instead, but you do not have to: a shorter " +
+            `chapter that holds attention is better than a longer one. ${WHOLE}\n` +
             `Fact problems, which must all be fixed by saying only what the notes support, and repairing the sentences around the change:\n${factLines(first.facts)}\n` +
             `Storytelling problems:\n${first.editorial.map((e: any) => `- ${text(e?.kind)}: "${text(e?.quote)}". ${text(e?.fix)}`).join("\n") || "- none"}\n` +
             (under
               ? `Length: the draft is ${wordCount(script)} words against ${low} to ${high}. Go back to the signature beats and look at their notes for what you passed over: the circumstances, the obstacle, the order things were found out, what followed. Tell those moments in full. Do not add anything that is not in the notes, and do not repeat or explain to fill space. If the notes hold nothing more worth telling, leave it short.\n`
               : over
                 ? `Length: the draft is ${wordCount(script)} words against ${low} to ${high}. Cut the weakest material first.\n`
-                : `Length: the draft is ${wordCount(script)} words. Do not hand back fewer.\n`),
+                : `Length: the draft is ${wordCount(script)} words. Cutting is fine. Do not add material only to make it longer.\n`),
         ),
       );
-      // A revision that only made the chapter shorter, when nothing in it was untrue, is not an
-      // improvement. The draft stands, with the editor's notes on record.
-      const shrunk = !over && first.facts.length === 0 && wordCount(fixed.script) < wordCount(script) * 0.92;
-      if (shrunk) review.kept_draft = true;
-      if (fixed.script && !shrunk) {
+      // A shorter revision is welcome. Only a reply that lost most of the chapter, a broken reply rather
+      // than an edit, is refused, and then the draft stands with the editor's notes on record.
+      const usable = keepRevision({ draftWords: wordCount(script), revisedWords: wordCount(fixed.script ?? ""), overLong: over });
+      if (!usable) review.kept_draft = true;
+      if (fixed.script && usable) {
         script = fixed.script;
         summary = fixed.summary || summary;
         review.revised = true;
@@ -1206,11 +1270,14 @@ async function writeChapter(o: {
         review.after = second;
         if (second.facts.length) {
           const safe = splitReply(await ask("correcting the chapter", WRITER_MODEL, brief, `${frame}\n\nHere is your draft:\n${script}\n\nThese claims are not supported by the notes. Correct each one so it says only what the notes support, or take it out. Then repair the passage around each change, rewriting the neighboring sentences as needed, so nothing is left broken. Change nothing else about the chapter. ${WHOLE}\n${factLines(second.facts)}`));
-          // A correction that guts the chapter has broken it. Fall back to the revision before it.
-          if (safe.script && wordCount(safe.script) >= wordCount(script) * 0.8) {
+          // Untrue claims must go, so a correction is taken unless it lost most of the chapter, a sign the reply
+          // broke. Then the revision stands, and the claims it could not fix are put on record.
+          if (safe.script && keepCorrection({ revisedWords: wordCount(script), correctedWords: wordCount(safe.script) })) {
             script = safe.script;
             summary = safe.summary || summary;
             review.fact_fix = true;
+          } else {
+            review.unresolved_facts = second.facts;
           }
         }
       }
@@ -1220,7 +1287,8 @@ async function writeChapter(o: {
     review.fault = err instanceof Problem ? err.message : String(err);
   }
   review.words = wordCount(script);
-  review.minutes = Math.round((wordCount(script) / WORDS_PER_MINUTE) * 10) / 10;
+  review.rate = rate;
+  review.minutes = Math.round((wordCount(script) / rate) * 10) / 10;
   review.short = wordCount(script) < low * 0.9;
   return { script, summary, review };
 }
@@ -1242,8 +1310,46 @@ const SHORT_LENGTHS = [5, 10];
  * Which chapters a telling of a given length plays, and how long each runs. The opening and the payoff
  * are always in. The middle is filled by priority, for as long as there is time.
  */
-function telling(outline: Chapter[], minutes: number, engine2: boolean) {
-  const { picked, lengths, bridges } = pickChapters(outline, minutes);
+function telling(outline: Chapter[], minutes: number, engine2: boolean, story?: any) {
+  // The previous way of choosing, kept exactly, for older plans and for comparison.
+  const previous = () => {
+    const { picked, lengths, bridges } = engine2 ? previousTelling(outline, minutes) : pickChapters(outline, minutes);
+    return { picked, lengths, bridges, mark: JSON.stringify([picked[1], lengths[1], bridges[1] ?? [], picked[2] ?? null, picked.length]) };
+  };
+  // A story whose second chapter was already written ahead for this length, the old way, keeps the old
+  // way for this length, so that chapter is used and nothing already paid for is written again.
+  const cached = story?.seconds?.[String(Math.round(minutes))]?.shape;
+  // Plans whose chapters have beats are otherwise told beat by beat, within the old budget: the story's
+  // ranked moments first, lesser ones let go, a moment with no room folded in. See tellStory in plan.ts.
+  if (engine2 && hasBeats(outline) && !(cached && cached === previous().mark)) {
+    const { told } = tellStory(outline, minutes);
+    const picked = told.map((t) => t.chapter);
+    const lengths = told.map((t) => t.minutes);
+    const bridges = told.map((t) => t.bridges);
+    const chosen = told.map((t, k) => {
+      const base = outline[t.chapter];
+      const beats = t.beats.map(({ from, ...b }) => (from === undefined ? b : { ...b, from_title: outline[from].title }));
+      // A chapter told as planned keeps all its notes. A shortened one keeps the notes of the beats it tells,
+      // so the writer is not tempted back into what was cut. Summaries of left-out chapters bring their notes.
+      const own = t.compressed || t.folded.length ? beats.flatMap((b) => b.fact_ids ?? []) : [...(base.fact_ids ?? []), ...beats.flatMap((b) => b.fact_ids ?? [])];
+      return {
+        ...base,
+        beats,
+        fact_ids: [...new Set([...own, ...t.bridges.flatMap((j) => outline[j].fact_ids ?? [])])],
+        transition: picked[k + 1] === t.chapter + 1 && !t.compressed ? base.transition ?? "" : "",
+        skipped: t.bridges.map((j) => ({ title: outline[j].title, short: outline[j].short || outline[j].discovery || outline[j].brief })),
+        compressed: t.compressed,
+        folded_from: t.folded.map((j) => outline[j].title),
+      };
+    });
+    const total = lengths.reduce((sum, m) => sum + m, 0);
+    const second = told[1];
+    const whole = Boolean(second) && second.chapter === 1 && !second.compressed && second.folded.length === 0 && second.bridges.length === 0 && second.minutes === minutesOf(outline, 1) && (told[2]?.chapter === 2 || outline.length === 2);
+    // What the chapter after the opening is made of in this telling, so one written ahead is only used for exactly that.
+    const mark = JSON.stringify(["beats", second?.chapter, second?.minutes, (second?.beats ?? []).map((b) => [b.beat, b.essential, b.from ?? null]), second?.bridges ?? [], told[2]?.chapter ?? null, told.length]);
+    return { picked, lengths, bridges, chosen, total, whole, mark };
+  }
+  const { picked, lengths, bridges, mark } = previous();
   // A chapter that is left out but depended on is carried by the chapter that needs it: its
   // essential beat and its notes go along, so the shorter story still holds together. A
   // chapter's lead-in to the next is kept only if that next chapter is really the next one played.
@@ -1253,23 +1359,9 @@ function telling(outline: Chapter[], minutes: number, engine2: boolean) {
     transition: picked[k + 1] === i + 1 ? outline[i].transition ?? "" : "",
     skipped: bridges[k].map((j) => ({ title: outline[j].title, short: outline[j].short || outline[j].discovery || outline[j].brief })),
   }));
-  if (engine2) {
-    // A shorter telling should still fill the time that was asked for where the story allows.
-    // Chapters carrying folded-in material have more to tell, so they get the spare minutes.
-    let spare = Math.round(minutes) - lengths.reduce((sum, m) => sum + m, 0);
-    for (let k = lengths.length - 1; k >= 1 && spare > 0; k--) {
-      const room = Math.min(spare, bridges[k].length, 5 - lengths[k]);
-      if (room > 0) {
-        lengths[k] += room;
-        spare -= room;
-      }
-    }
-  }
   const total = lengths.reduce((sum, m) => sum + m, 0);
   // True when the chapter after the opening is the plan's own second chapter, untouched.
   const whole = picked[1] === 1 && bridges[1]?.length === 0 && lengths[1] === (outline[1].minutes ?? 0) && (picked[2] === 2 || outline.length === 2);
-  // What the chapter after the opening is made of in this telling, so one written ahead is only used for the same thing.
-  const mark = JSON.stringify([picked[1], lengths[1], bridges[1] ?? [], picked[2] ?? null, picked.length]);
   return { picked, lengths, bridges, chosen, total, whole, mark };
 }
 
@@ -1277,8 +1369,9 @@ function telling(outline: Chapter[], minutes: number, engine2: boolean) {
 function shortsToWrite(topic: any): number[] {
   if (topic.story?.engine !== 2 || !Array.isArray(topic.outline) || topic.outline.length < 3) return [];
   return SHORT_LENGTHS.filter((m) => {
+    // Written ahead already for this length. Never written twice.
     if (topic.story.seconds?.[String(m)]) return false;
-    const plan = telling(topic.outline, m, true);
+    const plan = telling(topic.outline, m, true, topic.story);
     return !plan.whole && plan.chosen.length >= 2;
   });
 }
@@ -1288,7 +1381,7 @@ async function writeShortSecond(topicId: string, minutes: number) {
   const { data: topic } = await db.from("topics").select().eq("id", topicId).maybeSingle();
   if (!topic || topic.status !== "ready" || topic.story?.engine !== 2) return;
   mark({ topic_id: topic.id });
-  const plan = telling(topic.outline as Chapter[], minutes, true);
+  const plan = telling(topic.outline as Chapter[], minutes, true, topic.story);
   const chapter = plan.chosen[1] as Chapter;
   const facts: Fact[] = topic.source_notes ?? [];
   let written: Record<string, unknown> = { script: "" };
@@ -1303,6 +1396,7 @@ async function writeShortSecond(topicId: string, minutes: number) {
       afterOpening: true,
       before: closing(topic.opening_script),
       houseStyle: await setting("story_brief", STORY_BRIEF),
+      rate: await speakingRate((await narrator(me(), undefined, topic.id)).voice),
     });
   } catch {
     // Left marked as tried, so one bad chapter cannot hold up everything behind it. It is written when asked for.
@@ -1334,6 +1428,7 @@ async function writeSecond(topicId: string) {
     afterOpening: true,
     before: closing(topic.opening_script),
     houseStyle: await setting("story_brief", STORY_BRIEF),
+    rate: await speakingRate((await narrator(me(), undefined, topic.id)).voice),
   });
   await db.from("topics").update({ story: { ...topic.story, second } }).eq("id", topic.id);
   return { title: outline[1].title, ...second };
@@ -1362,7 +1457,8 @@ async function planTopic(asked: string, proposed?: any, force = false, wanted?: 
     const guesses = (parseJson("choosing what to read", guessesText, "[", "]") as unknown[]).filter(
       (g): g is string => typeof g === "string",
     );
-    const sources = await readArticles([...guesses, asked]);
+    // The subject's own article is read first, so it is never the one left out when five are found.
+    const sources = await readArticles([asked, ...guesses]);
     if (sources.length === 0) throw new Problem(502, "No Wikipedia articles could be found for that topic.");
 
     // The same subject can be proposed twice under different names ("Vasa", "Vasa (ship)").
@@ -1448,8 +1544,13 @@ async function finishTopic(topic: any, reviewReply?: string) {
     const houseStyle = await setting("story_brief", STORY_BRIEF);
     const facts: Fact[] = Array.isArray(topic.source_notes) ? topic.source_notes : [];
     const story: Story = topic.story && typeof topic.story === "object" ? topic.story : {};
-    const { outline, review, title: newTitle, hook: newHook } = await reviewPlan(story, facts, topic.outline as Chapter[], topic.title ?? "", topic.hook ?? "", reviewReply);
+    const { outline, review, title: newTitle, hook: newHook, story: revisedStory } = await reviewPlan(story, facts, topic.outline as Chapter[], topic.title ?? "", topic.hook ?? "", reviewReply);
     if (newTitle) topic = { ...topic, title: newTitle, hook: newHook || topic.hook };
+    // The Story Editor rewrote the premise. The angle follows the new central question.
+    if (revisedStory) {
+      Object.assign(story, revisedStory);
+      topic = { ...topic, angle: text(revisedStory.central_curiosity) || topic.angle };
+    }
     story.recommended_minutes = fullMinutes(outline);
 
     const openingNotes = notesFor(facts, outline[0].fact_ids);
@@ -1473,7 +1574,7 @@ async function finishTopic(topic: any, reviewReply?: string) {
     );
     const opening =
       story.engine === 2
-        ? await writeChapter({ context: openingContext, chapter: outline[0], notes: openingNotes, covered: "", minutes: 1, role: "opening", houseStyle })
+        ? await writeChapter({ context: openingContext, chapter: outline[0], notes: openingNotes, covered: "", minutes: 1, role: "opening", houseStyle, rate: await speakingRate((await narrator(me(), undefined, topic.id)).voice) })
         : await checkScript(draft.script, draft.summary, openingNotes, openingContext, houseStyle, false);
 
     const { data: ready, error: saveError } = await db
@@ -1483,6 +1584,7 @@ async function finishTopic(topic: any, reviewReply?: string) {
         stage: null,
         title: topic.title,
         hook: topic.hook,
+        angle: topic.angle,
         outline,
         story,
         review: { ...(topic.review ?? {}), ...review, opening: opening.review, finish_seconds: Math.round((Date.now() - began) / 1000) },
@@ -1532,8 +1634,15 @@ async function unplayedTopics(): Promise<any[]> {
   const { data } = await mine().from("topics").select("*, lessons(id, user_id), dismissals(topic_id, user_id)").eq("status", "ready").order("prepared_at", { ascending: false }).limit(300);
   // The scheduled job reads on a person's behalf without their pass, so "theirs" is also checked here by name.
   const theirs = (rows: any[] | null) => (rows ?? []).filter((r: any) => !me() || r.user_id === me());
-  const open = (data ?? []).filter((t: any) => theirs(t.lessons).length === 0 && theirs(t.dismissals).length === 0);
-  if (!me()) return open;
+  const unheard = (data ?? []).filter((t: any) => theirs(t.lessons).length === 0 && theirs(t.dismissals).length === 0);
+  if (!me()) return unheard;
+  // A subject they have already heard or swiped away is not offered again under another title.
+  const [{ data: heardRows }, { data: goneRows }] = await Promise.all([
+    service.from("lessons").select("topics(asked)").eq("user_id", me()).limit(2000),
+    service.from("dismissals").select("topics(asked)").eq("user_id", me()).limit(2000),
+  ]);
+  const done = [...(heardRows ?? []), ...(goneRows ?? [])].map((r: any) => String(r.topics?.asked ?? "")).filter(Boolean);
+  const open = unheard.filter((t: any) => !done.some((d) => sameSubject(d, t.asked)));
   // Stories thought up for this person come first, then ones that match their interests, then the rest.
   const { data: tags } = await db.from("interests").select("label").eq("hidden", false).eq("user_id", me());
   const labels = new Set((tags ?? []).map((t: any) => String(t.label).toLowerCase()));
@@ -1575,7 +1684,9 @@ async function unplayedTopics(): Promise<any[]> {
     .map((t: any, i: number) => ({ t: { ...t, _rank: rank(t) }, i, s: score.get(t.id)?.score ?? 0 }))
     // Their own stories stay newest first. Everywhere else the better liked and more heard come first.
     .sort((a: any, b: any) => a.t._rank - b.t._rank || (a.t._rank === 0 ? 0 : b.s - a.s) || a.i - b.i)
-    .map((x: any) => x.t);
+    .map((x: any) => x.t)
+    // Two stories on one subject: only the first, the better placed, is offered.
+    .filter((t: any, i: number, all: any[]) => !t.asked || all.findIndex((o: any) => sameSubject(o.asked, t.asked)) === i);
 }
 
 /**
@@ -2008,6 +2119,13 @@ async function listLessons() {
 
 // ---------- Starting a lesson ----------
 
+/** True when a recorded chapter told the same beats this telling asks of it, so its recording can be lent. */
+function sameBeats(recorded: any, wanted: any): boolean {
+  // What was told, not how it was marked: the beats, where each came from, and the summaries worked in.
+  const said = (c: any) => JSON.stringify([(c?.beats ?? []).map((b: any) => [b.beat, b.from_title ?? null]), (c?.skipped ?? []).map((b: any) => b.short ?? "")]);
+  return said(recorded) === said(wanted);
+}
+
 async function start(topicId: string, minutes: number) {
   const { data: topic } = await db.from("topics").select().eq("id", topicId).maybeSingle();
   if (!topic) throw new Problem(404, "No topic with that id.");
@@ -2017,7 +2135,7 @@ async function start(topicId: string, minutes: number) {
   // The opening and the payoff are always in. The middle is filled by priority, for as long
   // as there is time. A lesson is never stretched past the story it has.
   const engine2 = topic.story?.engine === 2;
-  const { picked, lengths, bridges, chosen, total, whole, mark: shape } = telling(outline, minutes, engine2);
+  const { picked, lengths, bridges, chosen, total, whole, mark: shape } = telling(outline, minutes, engine2, topic.story);
   // The chapter after the opening is written ahead: once for the whole story, and once for each of the
   // short lengths, where it carries folded-in material and takes longest to write. It is used when this
   // telling plays exactly the chapter that was written.
@@ -2049,7 +2167,7 @@ async function start(topicId: string, minutes: number) {
   const newcomer = isEleven(voiceNow) && (heardSoFar ?? 0) < 3;
   const { data: heardBefore } = await service
     .from("lessons")
-    .select("id, segments(position, title, target_minutes, script, summary, review, writer_model, source_refs, status, audio_path, voice, voice_model, duration_sec, shape)")
+    .select("id, segments(position, title, target_minutes, script, summary, review, writer_model, source_refs, status, audio_path, voice, voice_model, duration_sec, shape, blueprint)")
     .eq("topic_id", topic.id)
     .eq("chosen_minutes", total)
     .order("started_at", { ascending: false })
@@ -2060,7 +2178,7 @@ async function start(topicId: string, minutes: number) {
     if (theirs.length !== lengths.length) continue;
     const run: any[] = [];
     for (const s of theirs) {
-      if (s.position !== run.length + 1 || s.status !== "ready" || !s.audio_path || !s.script || !(run.length ? s.voice === run[0].voice : s.voice === voiceNow || (!newcomer && s.voice === "cedar") || lendable.has(s.voice)) || s.title !== chosen[run.length].title) break;
+      if (s.position !== run.length + 1 || s.status !== "ready" || !s.audio_path || !s.script || !(run.length ? s.voice === run[0].voice : s.voice === voiceNow || (!newcomer && s.voice === "cedar") || lendable.has(s.voice)) || s.title !== chosen[run.length].title || !sameBeats(s.blueprint, chosen[run.length])) break;
       run.push(s);
     }
     if (run.length > lent.length) lent = run;
@@ -2137,7 +2255,7 @@ async function start(topicId: string, minutes: number) {
     position: i + 1,
     title: chosen[i].title,
     // A chapter that is already written is listed at its real length.
-    target_minutes: i === 1 && second ? Math.max(1, Math.round(wordCount(second.script) / WORDS_PER_MINUTE)) : target_minutes,
+    target_minutes: i === 1 && second ? Math.max(1, Math.round(wordCount(second.script) / (Number(second.review?.rate) || WORDS_PER_MINUTE))) : target_minutes,
     brief: chosen[i].brief,
     fact_ids: chosen[i].fact_ids,
     blueprint: chosen[i],
@@ -2284,6 +2402,7 @@ async function ensureScript(lesson: any, segments: any[], segment: any): Promise
         : "End when the discovery has landed. Do not add a teaser.";
   const houseStyle = await setting("story_brief", STORY_BRIEF);
   if (story?.engine === 2 && planned) {
+    const rate = await speakingRate((await narrator(lesson.user_id, segments, lesson.topic_id)).voice);
     const made = await writeChapter({
       context: chapterContext(lesson.title, story, lesson.angle ?? "", segments.map((s) => s.title), segment.position, blueprint),
       chapter: blueprint,
@@ -2294,10 +2413,11 @@ async function ensureScript(lesson: any, segments: any[], segment: any): Promise
       afterOpening: segment.position === 2,
       before: closing(previous?.script),
       houseStyle,
+      rate,
     });
     await db.from("segments").update({ review: made.review }).eq("id", segment.id);
     // Once a chapter is written its real length is known, so the estimate gives way to it.
-    await db.from("segments").update({ target_minutes: Math.max(1, Math.round(wordCount(made.script) / WORDS_PER_MINUTE)) }).eq("id", segment.id);
+    await db.from("segments").update({ target_minutes: Math.max(1, Math.round(wordCount(made.script) / rate)) }).eq("id", segment.id);
     await db.from("segments").update({ script: made.script, summary: made.summary, source_refs: sourceRefs, status: "voicing", writer_model: WRITER_MODEL }).eq("id", segment.id);
     await db
       .from("lessons")

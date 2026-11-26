@@ -60,8 +60,9 @@ export default function Explore() {
       .catch(() => setIdeas((had) => had ?? []));
   }, []);
 
-  // Just after signing up Explore starts empty while the first ideas are made. Until some arrive, look every few seconds.
-  const empty = ideas !== null && ideas.length === 0;
+  // Just after signing up, the only things in Explore may be finished stories, or nothing at all, while the
+  // first new ideas are made. Until some arrive, say so, and look every few seconds.
+  const empty = ideas !== null && !ideas.some((i) => !i.ready);
   useEffect(() => {
     if (!empty) return;
     const quick = setInterval(() => AppState.currentState === 'active' && look(), 5000);
@@ -139,7 +140,7 @@ export default function Explore() {
       </ScrollView>
       <View style={{ height: 12 }} />
 
-      {usedUp ? <Text style={styles.queue}>Today{'\u2019'}s {usedUp.per_day} new stories are made. Anything you add now is made {whenOpens(usedUp.opens_at)}. Finished stories marked Ready now still play at once.</Text> : null}
+      {usedUp ? <Text style={styles.queue}>Today{'\u2019'}s {usedUp.per_day} new stories are made. Anything you add now is made {whenOpens(usedUp.opens_at)}. Stories that are already made still play at once.</Text> : null}
       {inQueue > 0 ? <Text style={styles.queue}>{inQueue === 1 ? '1 story in your queue.' : `${inQueue} stories in your queue.`} They arrive on Listen as they are made.</Text> : null}
 
       <ScrollView style={styles.scroll} contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
@@ -149,8 +150,7 @@ export default function Explore() {
             <Pressable accessibilityRole="button" accessibilityLabel={`${idea.title}. Add to my stories.`} onPress={() => queue(idea)} style={({ pressed }) => [styles.row, pressed && { opacity: 0.85 }]}>
               <CoverTile id={idea.id} size={TILE} />
               <View style={styles.words}>
-                {idea.ready ? <Text style={styles.ready}>Ready now</Text> : null}
-                <Text style={styles.title} numberOfLines={idea.ready ? 2 : 3}>
+                <Text style={styles.title} numberOfLines={3}>
                   {idea.title.replace(/[.\s]+$/, '')}
                 </Text>
               </View>
@@ -160,11 +160,17 @@ export default function Explore() {
             </Pressable>
           </SwipeAway>
         ))}
+        {empty && shown.length > 0 && !chosen ? (
+          <View style={styles.making} accessibilityLiveRegion="polite">
+            <ActivityIndicator color={colors.ink} />
+            <Text style={styles.makingText}>Making new ideas from your interests. They appear here as they{'\u2019'}re ready.</Text>
+          </View>
+        ) : null}
         {ideas !== null && shown.length === 0 ? (
           <View style={styles.empty}>
-            {!chosen && (ideas ?? []).length === 0 ? <ActivityIndicator color={colors.ink} size="large" style={{ marginBottom: 6 }} /> : null}
+            {!chosen && empty ? <ActivityIndicator color={colors.ink} size="large" style={{ marginBottom: 6 }} /> : null}
             <Serif size={28} style={{ textAlign: 'center' }}>
-              {!chosen && (ideas ?? []).length === 0 ? <>Making your <Em>ideas.</Em></> : <>More ideas <Em>soon.</Em></>}
+              {!chosen && empty ? <>Making your <Em>ideas.</Em></> : <>More ideas <Em>soon.</Em></>}
             </Serif>
             <Text style={styles.note}>{chosen ? 'Nothing under that interest yet. New ideas for it arrive within a few minutes.' : 'Pliny is creating story ideas from your interests right now. The first ones appear here in about a minute.'}</Text>
           </View>
@@ -201,9 +207,10 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'stretch', backgroundColor: colors.white, borderWidth: 1, borderColor: colors.line, height: TILE },
   // The same lettering as story titles on Listen and in the Library. Headlines are kept to about fifty characters, so three lines always hold them.
   words: { flex: 1, justifyContent: 'center', paddingHorizontal: 14 },
+  // Shown under finished stories while the first new ideas are still being made.
+  making: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 18, paddingHorizontal: 4 },
+  makingText: { flex: 1, fontFamily: fonts.body, fontSize: 15, lineHeight: 21, color: colors.gray },
   title: { fontFamily: fonts.display, fontSize: 16, lineHeight: 18, letterSpacing: -0.4, textTransform: 'uppercase', color: colors.ink },
-  // Marks a story that is already finished, so it starts at once.
-  ready: { fontFamily: fonts.bodySemi, fontSize: 11, letterSpacing: 1.2, textTransform: 'uppercase', color: colors.vermilion, marginBottom: 4 },
   plus: { width: 44, height: 44, borderRadius: 22, borderWidth: 1.5, borderColor: colors.ink, alignItems: 'center', justifyContent: 'center', marginRight: 12, alignSelf: 'center' },
   empty: { alignItems: 'center', gap: 12, paddingVertical: 48, paddingHorizontal: 12 },
   note: { fontFamily: fonts.body, fontSize: 16, lineHeight: 22, color: colors.gray, textAlign: 'center' },

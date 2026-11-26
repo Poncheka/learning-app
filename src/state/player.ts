@@ -81,6 +81,11 @@ let endQueued = false;
 let endTried = false;
 let wantPlaying = false;
 let stalled = false;
+// A finished story whose closing sting is still sounding after the listener has moved on.
+// It is left to play out, then let go. Starting another story lets it go at once.
+let lingering: { player: AudioPlaylist; timer: ReturnType<typeof setTimeout> } | null = null;
+// The closing sting is just over five seconds long.
+export const STING_SECONDS = 5.3;
 
 const idle = {
   phase: 'idle' as Phase,
@@ -99,7 +104,25 @@ const idle = {
   error: null,
 };
 
-function teardown() {
+function letGo(player: AudioPlaylist) {
+  for (const step of [() => player.pause(), () => player.clearLockScreenControls(), () => player.destroy()]) {
+    try {
+      step();
+    } catch {
+      // Already gone.
+    }
+  }
+}
+
+function endLingering() {
+  if (!lingering) return;
+  clearTimeout(lingering.timer);
+  letGo(lingering.player);
+  lingering = null;
+}
+
+function teardown(keepSting = false) {
+  endLingering();
   pendingSeek = null;
   endQueued = false;
   endTried = false;
@@ -115,15 +138,13 @@ function teardown() {
   // lesson would keep playing underneath the next one.
   const old = playlist;
   playlist = null;
-  if (old) {
-    for (const step of [() => old.pause(), () => old.clearLockScreenControls(), () => old.destroy()]) {
-      try {
-        step();
-      } catch {
-        // Already gone.
-      }
-    }
+  if (!old) return;
+  // Leaving the wrap screen while the closing sting plays: the sting finishes first.
+  if (keepSting) {
+    lingering = { player: old, timer: setTimeout(endLingering, STING_SECONDS * 1000 + 300) };
+    return;
   }
+  letGo(old);
 }
 
 // One cover for every story for now, served from the project's public GitHub repo.
@@ -442,7 +463,14 @@ export const usePlayer = create<PlayerState>((set, get) => {
 
     stop: () => {
       run++;
-      teardown();
+      // The closing sting is still sounding if the story has just ended and the listener tapped at once.
+      let sounding = false;
+      try {
+        sounding = get().phase === 'finished' && endQueued && Boolean(playlist?.playing);
+      } catch {
+        // The player is already gone.
+      }
+      teardown(sounding);
       set({ ...idle });
     },
   };
