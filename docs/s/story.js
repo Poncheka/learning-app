@@ -17,6 +17,18 @@
     box.innerHTML = art.svg;
   }
   function seconds() { return story.chapters.reduce(function (sum, c) { return sum + c.seconds; }, 0); }
+  function showSender(name) {
+    $('sent').innerHTML = '';
+    $('sent').append(name + ' sent you ');
+    var em = document.createElement('em'); em.textContent = 'a story.'; $('sent').append(em);
+  }
+  // The sender's name, asked for in the page's head, usually arrives before the story itself.
+  function senderShown() { document.documentElement.className = document.documentElement.className.replace(/\s*who-pending/g, ''); }
+  if (window.PLINY_WHO) {
+    window.PLINY_WHO.then(function (w) { if (w && w.name) showSender(w.name); }).catch(function () {}).then(senderShown);
+    setTimeout(senderShown, 2500);
+  }
+
   function clock(s) { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); }
   function show(id) { ['landing', 'player'].forEach(function (k) { $(k).hidden = k !== id; }); }
   function setTag(el) { if (story.tag) { el.textContent = story.tag; el.hidden = false; } }
@@ -24,9 +36,7 @@
   function fill() {
     document.title = story.title + '. A story from Pliny';
     if (story.sharer) {
-      $('sent').innerHTML = '';
-      $('sent').append(story.sharer + ' sent you ');
-      var em = document.createElement('em'); em.textContent = 'a story.'; $('sent').append(em);
+      showSender(story.sharer);
       $('sent-by').textContent = 'Sent by ' + story.sharer;
       $('sent-by').hidden = false;
     }
@@ -219,6 +229,8 @@
   });
 
   $('start').addEventListener('click', function () {
+    // The transcript sits under the button on the landing page, and under the player once it plays.
+    if ($('transcript')) $('waiting').after($('transcript'));
     show('player');
     $('player').scrollTop = 0;
     wanted = true;
@@ -345,6 +357,7 @@
     if (!r.ok) return missing();
     story = r.d;
     fill();
+    senderShown();
     paint();
   }).catch(missing);
 })();

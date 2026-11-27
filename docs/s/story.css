@@ -34,6 +34,8 @@ input.nudge{animation:nudge .42s ease;outline:none;border-color:var(--red)!impor
 .landing .logo{margin-bottom:auto}
 .sent{font-size:44px;line-height:1;letter-spacing:-.5px;margin:56px 0 22px}
 .sent em{font-style:italic}
+.sent{transition:opacity .25s ease}
+.who-pending .sent{opacity:0}
 .cover{width:240px;height:240px;box-shadow:12px 12px 0 var(--ink)}
 .big-title{font-size:30px;line-height:.98;letter-spacing:-1.2px;text-transform:uppercase;margin:28px 0 12px;max-width:340px}
 .meta{display:flex;align-items:center;gap:10px;justify-content:center;color:var(--gray);font-weight:600;font-size:14px}
@@ -156,3 +158,7 @@ input.nudge{animation:nudge .42s ease;outline:none;border-color:var(--red)!impor
 .transcript-body .credits .note{font-size:14px;line-height:1.5;color:var(--gray);margin-top:12px}
 /* With the transcript's own credits on the page, the shorter sources fold further down is not needed. */
 .has-transcript #src-box{display:none}
+/* On the landing page the transcript sits under the button, left-aligned for reading. */
+.landing .transcript{align-self:stretch;text-align:left;margin-top:18px}
+.landing .transcript summary{display:flex;justify-content:center}
+.landing .transcript[open] summary{justify-content:flex-start}

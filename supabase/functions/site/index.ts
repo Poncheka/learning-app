@@ -4,6 +4,7 @@
 // GET  ?                       a random saved story opening, for the home page's player.
 // GET  ?stories=1              every finished story's address and title, and for sent ones the transcript, to build its page.
 // GET  ?story=slug&r=code      one shared story to play: its chapters, who sent it, its sources.
+// GET  ?who=code               just the first name of who sent a link, for the page's first line.
 // POST { email, source?, ref?, interests?, story? }   join the waitlist. Answers with the joiner's own code.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
@@ -226,6 +227,15 @@ async function story(slug: string, code: string | null) {
   });
 }
 
+/** Just the first name of whoever sent a share link, if they chose to show it. Answers faster than story(). */
+async function who(code: string) {
+  if (!/^[a-z0-9]{4,12}$/.test(code)) return json({ name: null });
+  const { data: share } = await db.from("shares").select("user_id, show_name").eq("code", code).maybeSingle();
+  if (!share?.show_name) return json({ name: null });
+  const { data: profile } = await db.from("profiles").select("first_name").eq("user_id", share.user_id).maybeSingle();
+  return json({ name: profile?.first_name ?? null });
+}
+
 /** A code of the joiner's own, so a story they pass on moves them up too. */
 function newCode(): string {
   const letters = "abcdefghjkmnpqrstuvwxyz23456789";
@@ -275,6 +285,7 @@ Deno.serve(async (req: Request) => {
     if (req.method === "GET") {
       const q = new URL(req.url).searchParams;
       if (q.get("stories")) return await stories();
+      if (q.get("who")) return await who(q.get("who")!.toLowerCase());
       if (q.get("story")) return await story(q.get("story")!, q.get("r"));
       return await sample(q.get("not"));
     }
