@@ -1,6 +1,3 @@
-// NOTE: the deployed open-app is version 3 and is newer than this file. It also keeps the
-// code for the app to collect with a ticket (POST { to, ticket } and POST { claim }). Do not
-// deploy this file until it has been brought up to date.
 // The stepping stone between a sign-in email and the app while it runs inside Expo Go.
 //
 // Supabase refuses to send people on to an address that is a bare network number, and that

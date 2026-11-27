@@ -9,7 +9,7 @@ import { ProfileBadge } from '@/components/ProfileBadge';
 import { NowPlayingBar } from '@/components/NowPlayingBar';
 import { SwipeAway } from '@/components/SwipeAway';
 import { Em, Icon, Screen, Serif, TabBar, Wordmark } from '@/components/ui';
-import { dismissIdea, listIdeas, queueIdea, type Idea } from '@/lib/api';
+import { dismissIdea, listIdeas, markSeen, queueIdea, type Idea } from '@/lib/api';
 import { whenOpens } from '@/lib/when';
 import { colors, fonts, gutter } from '@/theme';
 
@@ -20,6 +20,32 @@ let kept: { ideas: Idea[]; tags: string[] } | null = null;
 type Banner = { title: string; note: string } | null;
 
 export default function Explore() {
+  // Which rows actually came into view, sent to the server in small batches. Where each row sits in
+  // the list is noted as it is laid out, and checked against the part of the list on screen.
+  const rows = useRef(new Map<string, { y: number; h: number }>());
+  const scrollY = useRef(0);
+  const viewH = useRef(0);
+  const seen = useRef(new Set<string>());
+  const sent = useRef(new Set<string>());
+  const noteInView = () => {
+    for (const [id, r] of rows.current) {
+      const middle = r.y + r.h / 2;
+      if (viewH.current > 0 && middle >= scrollY.current && middle <= scrollY.current + viewH.current) seen.current.add(id);
+    }
+  };
+  const flush = () => {
+    const fresh = [...seen.current].filter((id) => !sent.current.has(id));
+    if (fresh.length === 0) return;
+    fresh.forEach((id) => sent.current.add(id));
+    markSeen(fresh);
+  };
+  useEffect(() => {
+    const every = setInterval(flush, 10_000);
+    return () => {
+      clearInterval(every);
+      flush();
+    };
+  }, []);
   const [ideas, setIdeasNow] = useState<Idea[] | null>(kept?.ideas ?? null);
   const [tags, setTags] = useState<string[]>(kept?.tags ?? []);
   const setIdeas = (next: Idea[] | ((had: Idea[] | null) => Idea[])) =>
@@ -116,6 +142,9 @@ export default function Explore() {
   // An interest that has since been removed no longer filters anything.
   const chosen = filter && tags.includes(filter) ? filter : null;
   const shown = (ideas ?? []).filter((i) => !chosen || i.tag === chosen);
+  // Rows no longer on the list (filtered out, queued or swiped) stop counting toward what is in view.
+  const shownIds = new Set(shown.map((i) => i.id));
+  for (const id of [...rows.current.keys()]) if (!shownIds.has(id)) rows.current.delete(id);
 
   return (
     <Screen flush>
@@ -146,10 +175,32 @@ export default function Explore() {
       {usedUp ? <Text style={styles.queue}>Today{'\u2019'}s {usedUp.per_day} new stories are made. Anything you add now is made {whenOpens(usedUp.opens_at)}. Stories that are already made still play at once.</Text> : null}
       {inQueue > 0 ? <Text style={styles.queue}>{inQueue === 1 ? '1 story in your queue.' : `${inQueue} stories in your queue.`} They arrive on Listen as they are made.</Text> : null}
 
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={styles.list}
+        showsVerticalScrollIndicator={false}
+        scrollEventThrottle={250}
+        onLayout={(e) => {
+          viewH.current = e.nativeEvent.layout.height;
+          noteInView();
+        }}
+        onScroll={(e) => {
+          scrollY.current = e.nativeEvent.contentOffset.y;
+          noteInView();
+        }}
+      >
         {ideas === null ? <ActivityIndicator color={colors.ink} style={{ marginTop: 40 }} /> : null}
         {shown.map((idea) => (
-          <SwipeAway key={idea.id} label="Not for me" onAway={() => away(idea)} style={styles.slot}>
+          <SwipeAway
+            key={idea.id}
+            label="Not for me"
+            onAway={() => away(idea)}
+            style={styles.slot}
+            onLayout={(e) => {
+              rows.current.set(idea.id, { y: e.nativeEvent.layout.y, h: e.nativeEvent.layout.height });
+              noteInView();
+            }}
+          >
             <Pressable accessibilityRole="button" accessibilityLabel={`${idea.title}. Add to my stories.`} onPress={() => queue(idea)} style={({ pressed }) => [styles.row, pressed && { opacity: 0.85 }]}>
               <CoverTile id={idea.id} size={TILE} />
               <View style={styles.words}>

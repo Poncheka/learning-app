@@ -1,13 +1,13 @@
 // Wraps a row or card so it can be swiped left to send it away. The label is shown behind
 // it as it slides. A short or slow swipe springs back, so it is hard to do by accident.
 import { useRef, type ReactNode } from 'react';
-import { Animated, PanResponder, StyleSheet, Text, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Animated, PanResponder, StyleSheet, Text, View, type LayoutChangeEvent, type StyleProp, type ViewStyle } from 'react-native';
 
 import { colors, fonts } from '@/theme';
 
 const FAR_ENOUGH = 110;
 
-export function SwipeAway({ label, onAway, children, style }: { label: string; onAway: () => void; children: ReactNode; style?: StyleProp<ViewStyle> }) {
+export function SwipeAway({ label, onAway, children, style, onLayout }: { label: string; onAway: () => void; children: ReactNode; style?: StyleProp<ViewStyle>; onLayout?: (e: LayoutChangeEvent) => void }) {
   const x = useRef(new Animated.Value(0)).current;
   // Kept in a ref so the gesture, which is set up once, always calls the latest version.
   const away = useRef(onAway);
@@ -36,6 +36,7 @@ export function SwipeAway({ label, onAway, children, style }: { label: string; o
   return (
     <View
       style={style}
+      onLayout={onLayout}
       accessibilityActions={[{ name: 'delete', label }]}
       onAccessibilityAction={(e) => e.nativeEvent.actionName === 'delete' && onAway()}
     >

@@ -41,6 +41,14 @@ function Card({ topic, background, lead, isNew, onPress, onAway }: { topic: Topi
         <Text style={[styles.title, lead ? styles.leadTitle : styles.smallTitle, sized(title, Boolean(lead)), { color: background.text }]} numberOfLines={lead ? 4 : 5}>
           {title}.
         </Text>
+        {/* Picked from a headline the research couldn't fully back up: said, never swapped silently. */}
+        {topic.picked_headline ? (
+          <Text style={[styles.picked, lead && styles.leadPicked, { color: background.text }]} numberOfLines={2}>
+            {'You picked \u201c'}
+            {topic.picked_headline.replace(/[.\s]+$/, '')}
+            {'.\u201d The research told it this way.'}
+          </Text>
+        ) : null}
         {/* The interest it grew out of, so the kind of story is clear at a glance. Wildcards show none. */}
         {topic.tag && topic.tag !== 'Off the map' ? (
           <View style={[styles.tag, lead && styles.leadTag, { borderColor: background.text }]}>
@@ -190,6 +198,8 @@ const styles = StyleSheet.create({
   // Every background keeps its artwork toward the top right, so the title holds to the lower left.
   leadTitle: { maxWidth: '88%' },
   smallTitle: { maxWidth: '96%', letterSpacing: -0.6 },
+  picked: { fontFamily: fonts.body, fontSize: 11, lineHeight: 14, marginTop: 6, opacity: 0.85 },
+  leadPicked: { fontSize: 13, lineHeight: 17 },
   tag: { alignSelf: 'flex-start', marginTop: 8, height: 24, borderRadius: 12, borderWidth: 1.5, paddingHorizontal: 10, justifyContent: 'center', maxWidth: '100%' },
   leadTag: { marginTop: 12, height: 28, borderRadius: 14, paddingHorizontal: 12 },
   tagText: { fontFamily: fonts.bodyMedium, fontSize: 10, letterSpacing: 1.6, textTransform: 'uppercase' },

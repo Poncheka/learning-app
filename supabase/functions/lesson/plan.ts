@@ -8,7 +8,7 @@ export type Chapter = {
   /** One line on what the chapter is for. Older plans have only this. */
   brief: string;
   fact_ids: number[];
-  /** How long it should run, two to four minutes. Missing on plans made before blueprints. */
+  /** How long it should run, one to four minutes. Missing on plans made before blueprints. */
   minutes?: number;
   /** For middle chapters: 1 the story needs it, 2 strong but optional, 3 first to go. */
   priority?: number;
@@ -30,7 +30,9 @@ export type Chapter = {
   ending_note?: string;
 };
 
-const SHORTEST = 2;
+// A chapter may run a single minute, so a thin story can be an opening and one short chapter instead
+// of being padded out to five minutes. Plans made before this asked for two to four, so they are unchanged.
+const SHORTEST = 1;
 const LONGEST = 4;
 
 /** Older plans: a one minute opening, then chapters of two or three minutes that fill the time. */
@@ -49,7 +51,7 @@ export function isBlueprint(outline: Chapter[]): boolean {
 }
 
 /**
- * How long a chapter runs: two to four minutes. The first chapter of an older plan was a
+ * How long a chapter runs: one to four minutes. The first chapter of an older plan was a
  * one minute opening with no length of its own, and still counts as one minute.
  */
 export function minutesOf(outline: Chapter[], i: number): number {
@@ -193,8 +195,15 @@ export type Told = {
   compressed: boolean;
   /** Chapters folded into this one whose moments it carries. */
   folded: number[];
-  /** Chapters left out that this one depends on: their one or two sentence summary is worked in. */
+  /** The one chapter left out that this one depends on most closely, worked in as a single sentence. At most one per telling. */
   bridges: number[];
+  /**
+   * Spare-time beats: at most two beats the budget left out, each next to a moment this chapter tells, from
+   * the same plan chapter. The writer tells one only if the chapter runs short of its length, and then in
+   * full. Plans often promise more minutes than a beat's notes can carry, so a chapter can finish early;
+   * this lets it spend that time on the story's own material instead of padding. Empty for a whole chapter.
+   */
+  reserve: (Beat & { from?: number })[];
 };
 
 /** True when the plan has beats to work with. Older plans are chosen whole chapter by whole chapter. */
@@ -241,7 +250,7 @@ export function tellStory(outline: Chapter[], minutes: number): { told: Told[]; 
 
   // The whole story fits: it is played as planned.
   if (prev.picked.length === outline.length) {
-    const told = outline.map((c, i) => ({ chapter: i, minutes: minutesOf(outline, i), beats: (c.beats ?? []).map((_, k) => plain(i, k)), compressed: false, folded: [], bridges: [] }));
+    const told = outline.map((c, i) => ({ chapter: i, minutes: minutesOf(outline, i), beats: (c.beats ?? []).map((_, k) => plain(i, k)), compressed: false, folded: [], bridges: [], reserve: [] }));
     return { told, total: fullMinutes(outline), over: false };
   }
 
@@ -308,6 +317,21 @@ export function tellStory(outline: Chapter[], minutes: number): { told: Told[]; 
     });
   };
 
+  // The rest of the climax's own chapter, strongest beats first: signature, then supporting, then background.
+  function climaxDepth(c: number) {
+    const order: Record<string, number> = { signature: 0, supporting: 1, connective: 2 };
+    (outline[c].beats ?? [])
+      .map((b, k) => ({ b, k }))
+      .sort((x, y) => (order[x.b.weight] ?? 1) - (order[y.b.weight] ?? 1) || x.k - y.k)
+      .forEach(({ k }) => {
+        if (cost[c][k] !== null) return;
+        attempt(() => {
+          cost[c][k] = full(c, k);
+          return () => (cost[c][k] = null);
+        });
+      });
+  }
+
   // 1. The story's ranked moments, the one it turns on first, each told in full before the next is
   //    taken: depth before breadth. A moment that will not fit in full is told tightly if that fits,
   //    and one that does not fit at all is let go. A shorter telling is narrower, not a list of highlights.
@@ -315,13 +339,19 @@ export function tellStory(outline: Chapter[], minutes: number): { told: Told[]; 
     .flatMap((c, i) => (c.beats ?? []).map((_, k) => ({ i, k, rank: essentialRank(outline, i, k) })))
     .filter((m) => m.i > 0 && m.rank !== null && cost[m.i][m.k] === null && !(m.i === last && m.k === payoff))
     .sort((a, b) => (a.rank as number) - (b.rank as number) || b.i - a.i || a.k - b.k);
-  for (const m of moments) {
+  for (const [n, m] of moments.entries()) {
     if (!addBeat(m.i, m.k, Math.min(full(m.i, m.k), ESSENTIAL_FLOOR))) continue;
     attempt(() => {
       const before = cost[m.i][m.k];
       cost[m.i][m.k] = full(m.i, m.k);
       return () => (cost[m.i][m.k] = before);
     });
+    // The moment the story turns on is developed before anything else is taken: the rest of its own
+    // chapter, told in full, when that chapter plays on its own. A short telling spends
+    // its time on the climax and what surrounds it, not on a little of everything.
+    // Only when the plan itself numbered this moment 1. Plans that do not number their moments are ranked by
+    // place, and their first moment can be the aftermath rather than the climax.
+    if (n === 0 && playing.has(m.i) && (outline[m.i].beats ?? [])[m.k]?.essential === 1) climaxDepth(m.i);
   }
 
   // 2. With time left, the kept moments and the payoff are told in full, the most important first.
@@ -363,6 +393,21 @@ export function tellStory(outline: Chapter[], minutes: number): { told: Told[]; 
     if (!added) break;
   }
 
+  // Beats left out next to a told moment, from the chapter itself or one folded into it: an event, a
+  // finding or a person, never a background line. Signature beats first, then the earlier in the story.
+  function spare(c: number, folded: number[]): (Beat & { from?: number })[] {
+    const found: { b: Beat & { from?: number }; i: number; k: number; w: number }[] = [];
+    for (const i of [...folded, c]) {
+      const list = outline[i].beats ?? [];
+      list.forEach((b, k) => {
+        if (cost[i][k] !== null || b.weight === "connective") return;
+        if (![k - 1, k + 1].some((n) => n >= 0 && n < list.length && cost[i][n] !== null)) return;
+        found.push({ b: i === c ? { ...b } : { ...b, from: i }, i, k, w: b.weight === "signature" ? 0 : 1 });
+      });
+    }
+    return found.sort((x, y) => x.w - y.w || x.i - y.i || x.k - y.k).slice(0, 2).map((x) => x.b);
+  }
+
   // Each left-out chapter that a played one depends on is summarized once, by the first that needs it.
   const told: Told[] = [];
   const summarized = new Set<number>();
@@ -374,8 +419,16 @@ export function tellStory(outline: Chapter[], minutes: number): { told: Told[]; 
     for (const j of [...bridges, ...folded]) summarized.add(j);
     const own = (outline[c].beats ?? []).flatMap((_, k) => (cost[c][k] !== null ? [plain(c, k)] : []));
     const brought = folded.flatMap((j) => (outline[j].beats ?? []).flatMap((_, k) => (cost[j][k] !== null ? [{ ...plain(j, k), from: j }] : [])));
-    told.push({ chapter: c, minutes: length(c), beats: [...brought, ...own], compressed: c !== 0 && !(lockSecond && c === 1) && !whole(c), folded, bridges });
+    const compressed = c !== 0 && !(lockSecond && c === 1) && !whole(c);
+    told.push({ chapter: c, minutes: length(c), beats: [...brought, ...own], compressed, folded, bridges, reserve: compressed ? spare(c, folded) : [] });
   }
+  // At most one left-out chapter is bridged in the whole telling: the latest one needed, which is the
+  // closest cause of what is told. Every other left-out chapter is simply not told. A bridge is worked
+  // in as a single sentence, so the time goes to the moments that are played.
+  // A chapter whose moment is folded into a later one is told there, so it is never the bridge.
+  const foldedLater = new Set(told.flatMap((t) => t.folded));
+  const bridged = Math.max(-1, ...told.flatMap((t) => t.bridges).filter((j) => !foldedLater.has(j)));
+  for (const t of told) t.bridges = t.bridges.filter((j) => j === bridged);
   const sum = told.reduce((s, t) => s + t.minutes, 0);
   return { told, total: sum, over: sum > minutes };
 }
@@ -469,4 +522,104 @@ export function sameSubject(a: unknown, b: unknown): boolean {
   const [small, big] = x.size <= y.size ? [x, y] : [y, x];
   if (![...small].every((w) => big.has(w))) return false;
   return small.size >= 2 || small.size === big.size;
+}
+
+
+// ---------- The title a story is given ----------
+
+/**
+ * The title a planned story gets. A story picked from an Explore headline keeps that headline when the
+ * planner says the story delivers it; otherwise the planner's own title, which stays on the same angle.
+ */
+export function chosenTitle(card: unknown, plan: Record<string, unknown>, asked: string): string {
+  const headline = typeof card === "string" ? card.trim() : "";
+  if (headline && plan.headline_holds === true) return headline;
+  const planned = typeof plan.title === "string" ? plan.title.trim() : "";
+  return planned || headline || asked;
+}
+
+// ---------- Research gaps ----------
+
+/**
+ * True for a note that is only about what our extracts do not say, such as "The supplied Human Library
+ * extract does not report a study of its effect." That is a gap in our reading, not a fact about the world,
+ * so it is never told and never becomes a beat. A note that states a fact and then limits it ("The boy
+ * recovered; the extract does not establish that the transfusion caused it") is kept: the limit stops the
+ * writer from claiming too much. So are genuine open questions ("the animal's identity remains unsolved")
+ * and notes about conflicting sources.
+ */
+export function isResearchGap(note: unknown): boolean {
+  const fact = (typeof note === "string" ? note : typeof (note as any)?.fact === "string" ? (note as any).fact : "").trim();
+  return /^(?:the|this|these|our)\s+(?:[\w'’-]+\s+){0,5}?(?:extracts?|articles?|sources?|material|notes|research)\s+(?:(?:do|does|did)\s+not\s+\w+|(?:reports?|gives?|includes?|mentions?|says?|contains?)\s+no(?:thing)?\b|(?:is|are)\s+silent\b)/i.test(fact);
+}
+
+// ---------- What earlier chapters told ----------
+
+/**
+ * A compact list of what each earlier chapter was written to tell, one line per beat, for the writer and
+ * the checker of the next chapter. The writer's own one-line summaries lose too much: a premise restated
+ * in new words, or a fact brought back with a number added, slipped past them. Each beat is cut to about
+ * 160 characters, so a long story adds a few hundred tokens at most. Empty when there is nothing to list.
+ */
+export function toldBefore(chapters: Partial<Chapter>[]): string {
+  const clip = (t: string) => (t.length > 160 ? `${t.slice(0, 157).replace(/\s+\S*$/, "")}...` : t);
+  const lines = chapters.flatMap((c, i) => {
+    const beats = (c.beats ?? []).map((b) => (typeof b?.beat === "string" ? b.beat.trim() : "")).filter(Boolean);
+    const said = beats.length ? beats : [c.discovery, c.short, c.brief].filter((t): t is string => typeof t === "string" && t.trim().length > 0).slice(0, 1);
+    return said.map((t) => `  - Chapter ${i + 1}, ${c.title ?? ""}: ${clip(t.replace(/\s+/g, " "))}`);
+  });
+  if (!lines.length) return "";
+  return (
+    "\n\nAlready told, beat by beat. None of these is new to the listener. Coming back to one with a number added, " +
+    `in other words or with an interpretation attached is repetition, not a discovery:\n${lines.join("\n")}`
+  );
+}
+
+// ---------- Fewer, fuller chapters ----------
+
+/**
+ * Joins neighboring chapters that are each under two minutes into one chapter, so a short story is told
+ * in a few substantial chapters rather than many one-minute ones. Every chapter after the opening is
+ * written, checked and often revised on its own, so each extra chapter costs about three model calls.
+ * Only two short neighbors are joined, never a short chapter into a full one, so a real division in the
+ * story stays where the plan put it. The joined chapter keeps the beats of both in order, takes the title
+ * of whichever half holds the higher-ranked moment, ends the way the second half ended, and runs at most
+ * four minutes. Chapter numbers in "needs" are renumbered. The opening is never joined.
+ */
+export function mergeShortChapters(outline: Chapter[]): Chapter[] {
+  let out: Chapter[] = outline.map((c) => ({ ...c, beats: c.beats ? [...c.beats] : c.beats, needs: [...(c.needs ?? [])] }));
+  const best = (c: Chapter) => Math.min(...(c.beats ?? []).map((b) => (typeof b.essential === "number" && b.essential >= 1 ? b.essential : 99)), 99);
+  for (let i = 1; i < out.length - 1; i++) {
+    const a = out[i], b = out[i + 1];
+    const ma = Number(a.minutes) || 0, mb = Number(b.minutes) || 0;
+    if (!(ma > 0 && mb > 0 && ma < 2 && mb < 2 && ma + mb <= 4)) continue;
+    const lead = best(b) < best(a) ? b : a;
+    const joined: Chapter = {
+      ...a,
+      title: lead.title,
+      brief: [a.brief, b.brief].filter(Boolean).join(" "),
+      fact_ids: [...new Set([...(a.fact_ids ?? []), ...(b.fact_ids ?? [])])],
+      minutes: ma + mb,
+      priority: Math.min(Number(a.priority) || 2, Number(b.priority) || 2),
+      development: [a.development, b.development].filter(Boolean).join(" Then: "),
+      discovery: lead.discovery,
+      turn: b.turn ?? a.turn,
+      matters: lead.matters,
+      transition: b.transition,
+      short: [a.short, b.short].filter(Boolean).join(" "),
+      beats: [...(a.beats ?? []), ...(b.beats ?? [])],
+      ending: b.ending,
+      ending_note: b.ending_note,
+      // What either half depended on, except the first half itself.
+      needs: [...new Set([...(a.needs ?? []), ...(b.needs ?? [])])].filter((n) => n !== i + 1),
+    };
+    // Chapter numbers count from 1. The second half, number i + 2, is now part of number i + 1.
+    const renumber = (n: number) => (n === i + 2 ? i + 1 : n > i + 2 ? n - 1 : n);
+    out = [...out.slice(0, i), joined, ...out.slice(i + 2)].map((c, k) => ({
+      ...c,
+      needs: [...new Set((c.needs ?? []).map(renumber))].filter((n) => n >= 1 && n <= k),
+    }));
+    i--; // The joined chapter may now sit next to another short one, but it is two minutes or more, so it is never joined again.
+  }
+  return out;
 }

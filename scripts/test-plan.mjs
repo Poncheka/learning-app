@@ -10,7 +10,8 @@ import ts from 'typescript';
 const source = readFileSync(new URL('../supabase/functions/lesson/plan.ts', import.meta.url), 'utf8');
 const built = join(mkdtempSync(join(tmpdir(), 'plan-')), 'plan.mjs');
 writeFileSync(built, ts.transpileModule(source, { compilerOptions: { module: 'esnext', target: 'es2022' } }).outputText);
-const { chapterLengths, dependencies, fullMinutes, isBlueprint, pickChapters, previousTelling, tellStory, isEssential, essentialRank, hasBeats, keepRevision, keepCorrection, revisePremise, readingRate, minutesOf, FOLDED_LONGEST, sameSubject } = await import(pathToFileURL(built));
+const { chapterLengths, dependencies, fullMinutes, isBlueprint, pickChapters, previousTelling, tellStory, isEssential, essentialRank, hasBeats, keepRevision, keepCorrection, revisePremise, readingRate, minutesOf, FOLDED_LONGEST, sameSubject, isResearchGap, toldBefore, mergeShortChapters } = await import(pathToFileURL(built));
+const { FIVE } = await import('./fixtures/five-stories.mjs');
 const { readPlans, sourceFamily } = await import('./telling-report.mjs');
 
 const ch = (title, minutes, priority) => ({ title, brief: '', fact_ids: [], minutes, priority });
@@ -41,9 +42,9 @@ test('asking for more than the story has does not pad it', () => {
   assert.equal(sum(60), 18);
   assert.equal(names(60).length, story.length);
 });
-test('chapter lengths are held to two to four minutes', () => {
-  const odd = [ch('Opening'), ch('Long', 9, 1), ch('Short', 1, 1), ch('Payoff', 3)];
-  assert.deepEqual(pickChapters(odd, 30).lengths, [1, 4, 2, 3]);
+test('chapter lengths are held to one to four minutes', () => {
+  const odd = [ch('Opening'), ch('Long', 9, 1), ch('Short', 1, 1), ch('Zero', 0.2, 1), ch('Payoff', 3)];
+  assert.deepEqual(pickChapters(odd, 30).lengths, [1, 4, 1, 1, 3]);
 });
 test('a two chapter story is the opening and the payoff', () => {
   const two = [ch('Opening'), ch('Payoff', 4)];
@@ -177,7 +178,7 @@ test('the last chapter always plays and ends on its payoff', () => {
     assert.equal(last.beats[last.beats.length - 1].beat, outline[outline.length - 1].beats.at(-1).beat, `${id} at ${m}`);
   }
 });
-test('the story stays in order, no beat is told twice, and what a chapter depends on is played, folded or summarized', () => {
+test('the story stays in order, no beat is told twice, and at most one left-out chapter is bridged, the closest cause', () => {
   for (const { id, outline } of readPlans()) for (const m of LENGTHS) {
     const t = told(outline, m);
     const chapters = t.told.map((c) => c.chapter);
@@ -188,8 +189,13 @@ test('the story stays in order, no beat is told twice, and what a chapter depend
     for (const c of t.told) {
       const order = c.beats.map((b) => b.from ?? c.chapter);
       assert.deepEqual(order, [...order].sort((a, b) => a - b), `${id} ${m}: folded beats after the chapter's own`);
-      for (const j of dependencies(outline, c.chapter)) assert.ok(covered.has(j), `${id} ${m}: chapter ${c.chapter + 1} lost ${j + 1}`);
     }
+    // A short telling spends its time on what it plays. One bridging sentence at most, for the latest
+    // left-out chapter that a played one depends on, since that is the closest cause of what is told.
+    const bridges = t.told.flatMap((x) => x.bridges);
+    assert.ok(bridges.length <= 1, `${id} ${m}: ${bridges.length} bridges`);
+    const missing = [...new Set(t.told.flatMap((c) => [c.chapter, ...c.folded].flatMap((x) => dependencies(outline, x))))].filter((j) => !chapters.includes(j) && !t.told.some((x) => x.folded.includes(j)));
+    if (missing.length) assert.deepEqual(bridges, [Math.max(...missing)], `${id} ${m}: the bridge is not the closest cause`);
   }
 });
 test('where the previous engine played the second chapter whole, so does the new one', () => {
@@ -312,6 +318,100 @@ test('one subject under two titles is caught, different subjects are not', () =>
     assert.ok(sameSubject(a, b), `${a} / ${b}`);
   for (const [a, b] of [['Pope Joan', 'Pope Sylvester II'], ['Yule', 'Yule log'], ['Muon', 'Muon-catalyzed fusion'], ['Charles VI of France', 'Charles VIII of France'], ['Witch of Endor', 'Witch of Edmonton'], ['Salem witch trials', 'North Berwick witch trials'], ['Yule Lads', 'Yule Cat'], ['', '']])
     assert.ok(!sameSubject(a, b), `${a} / ${b}`);
+});
+
+// ---------- The Nov 27 storytelling corrections ----------
+
+test('a note that is only about a gap in our research is recognized', () => {
+  for (const gap of [
+    "The supplied Human Library extract does not report a study measuring the organization's own effect on participants' prejudice.",
+    'The extract does not establish how often eating casu martzu causes illness.',
+    'The extract does not explain the legal terms under which the Moulin Rouge managers sued Pujol.',
+    'The extract does not state how the Soviet adaptation experiments turned out.',
+    'The extracts do not say why the authorities prohibited xenotransfusion.',
+    'The article gives no date for the second trial.',
+  ]) assert.equal(isResearchGap({ fact: gap }), true, gap);
+});
+test('facts, hedged facts, open questions and conflicting sources are kept', () => {
+  for (const kept of [
+    'The boy recovered after the procedure; the extract does not establish that the transfusion caused his recovery.',
+    'One theory holds that Gruithuisen’s paper inspired Locke’s articles, but the extract does not establish that connection as certain.',
+    'The extract says the period descriptions could fit a striped hyena, a large wolf, a large dog or a wolfdog, and that the animal’s identity remains unsolved.',
+    'The spirit was later said to be a murdered peddler, but no record of such a person was ever found.',
+    'The two supplied articles give different totals for the 1990 Nike shoe spill: 61,000 in one and some 80,000 in the other.',
+    'The article states that Ponzi schemes were not yet illegal when Spitzeder was convicted.',
+    'According to the extract, the largest meta-analysis of the contact literature found Allport\'s conditions helpful but not essential.',
+    'Historians do not know who wrote the letter.',
+    'Snow found a cholera rate fourteen times higher in homes supplied by the Southwark and Vauxhall Waterworks Company.',
+  ]) assert.equal(isResearchGap({ fact: kept }), false, kept);
+});
+test('the next chapter is told what earlier chapters covered, beat by beat, compactly', () => {
+  const said = toldBefore([FIVE.octopus[0], FIVE.octopus[1]]);
+  assert.ok(said.includes('Chapter 1, carries shells: carries shells'));
+  assert.ok(said.includes('Chapter 2, walks on two arms: carrying bulky things'));
+  assert.ok(said.includes('with a number added'));
+  assert.equal(toldBefore([]), '');
+  const long = toldBefore([{ title: 'x', beats: [{ beat: 'word '.repeat(80), weight: 'signature', fact_ids: [] }] }]);
+  assert.ok(long.split('\n').at(-1).length < 200, 'a long beat is clipped');
+  // Older chapters without beats fall back to their discovery.
+  assert.ok(toldBefore([{ title: 'Old', discovery: 'The ship sank on its first voyage.' }]).includes('The ship sank'));
+});
+test('a short telling bridges at most one left-out chapter and develops the climax', () => {
+  const t = tellStory(FIVE.banker, 5);
+  assert.equal(t.total, 5);
+  assert.ok(t.told.flatMap((c) => c.bridges).length <= 1);
+  const beats = t.told.flatMap((c) => c.beats.map((b) => b.beat));
+  for (const b of ['collapse', 'Ehinger escape and sentence', 'withdrawals limited', '32,000 lose 38 million']) assert.ok(beats.includes(b), b);
+});
+test('a story whose notes carry three or four minutes can be an opening and one short chapter', () => {
+  const thin = [FIVE.library[0], { ...FIVE.library[1], minutes: 2 }];
+  assert.equal(fullMinutes(thin), 3);
+  const t = tellStory(thin, 10);
+  assert.equal(t.total, 3, 'never padded up to the length asked for');
+  assert.deepEqual(t.told.map((c) => c.chapter), [0, 1]);
+});
+test('the two strong stories tell the same beats as before at 5 and 10 minutes', () => {
+  const beatsAt = (o, m) => tellStory(o, m).told.map((c) => [c.chapter, c.minutes, c.beats.map((b) => b.beat)]);
+  assert.deepEqual(beatsAt(FIVE.fish, 5), [[0, 1, ['colorless blood', 'icefish family', 'ambush predator']], [3, 3, ['four times the blood', 'inhibited myoglobin', 'iron']]]);
+  assert.equal(tellStory(FIVE.fish, 10).total, 9);
+  assert.deepEqual(beatsAt(FIVE.cult, 5)[1][2], ['Matsumoto release', 'Kariya note and kidnapping', 'raids uncover', 'Kono apology']);
+  assert.deepEqual(tellStory(FIVE.cult, 5).told.flatMap((c) => c.bridges), [2]);
+});
+
+test('a short telling offers spare-time beats next to what it tells, never background lines', () => {
+  const t = tellStory(FIVE.banker, 5);
+  const last = t.told.at(-1);
+  assert.deepEqual(last.reserve.map((b) => b.beat), ['backstory: Emilie, six dogs, stipend']);
+  for (const story of Object.values(FIVE)) for (const m of [3, 4, 5, 6, 8, 10]) {
+    const tt = tellStory(story, m);
+    const told = new Set(tt.told.flatMap((c) => c.beats.map((b) => b.beat)));
+    const spare = tt.told.flatMap((c) => c.reserve.map((b) => b.beat));
+    assert.ok(tt.told.every((c) => c.reserve.length <= 2));
+    assert.ok(spare.every((b) => !told.has(b)), 'a spare beat is never one already told');
+    assert.equal(new Set(spare).size, spare.length, 'offered once');
+    assert.ok(tt.told.flatMap((c) => c.reserve).every((b) => b.weight !== 'connective'));
+    assert.ok(tt.told.every((c) => c.compressed || c.reserve.length === 0), 'a whole chapter has nothing spare');
+  }
+  assert.ok(tellStory(FIVE.fish, 10).told.every((c) => c.reserve.length === 0), 'the whole story needs no spare time');
+});
+test('neighboring one-minute chapters are joined, and nothing else is', () => {
+  const S1 = (beat, essential) => ({ beat, weight: 'signature', fact_ids: [], essential });
+  const ch = (title, minutes, needs, beats) => ({ title, brief: '', fact_ids: [], minutes, needs, beats, ending: 'revelation', ending_note: title });
+  // The octopus as the new planner wrote it: four one-minute chapters.
+  const octo = [ch('A coconut on the move', 1, [], [S1('carry', 1)]), ch('Walking on two arms', 1, [1], [S1('walk', 3)]), ch('A tool, or protection already?', 1, [1], [S1('tool', false)]), ch('The eggs inside the shell', 1, [1, 3], [S1('eggs', 2)])];
+  const m = mergeShortChapters(octo);
+  assert.deepEqual(m.map((c) => [c.title, c.minutes]), [['A coconut on the move', 1], ['Walking on two arms', 2], ['The eggs inside the shell', 1]]);
+  assert.deepEqual(m[1].beats.map((b) => b.beat), ['walk', 'tool'], 'both halves, in order');
+  assert.equal(m[1].ending_note, 'A tool, or protection already?', 'ends the way the second half ended');
+  assert.deepEqual(m[2].needs, [1, 2], 'a need on the joined half points at the joined chapter');
+  // The higher-ranked half names the chapter.
+  const swapped = mergeShortChapters([octo[0], ch('Setup', 1, [1], [S1('setup', false)]), ch('The big one', 1, [1], [S1('big', 1)]), ch('End', 3, [], [S1('end', 2)])]);
+  assert.equal(swapped[1].title, 'The big one');
+  // Stored plans have no one-minute chapters, so nothing changes for them.
+  for (const story of Object.values(FIVE)) assert.deepEqual(mergeShortChapters(story).map((c) => c.minutes), story.map((c) => c.minutes));
+  for (const { outline } of readPlans()) assert.equal(mergeShortChapters(outline).length, outline.length);
+  // A short chapter beside a full one stays where the plan put it.
+  assert.equal(mergeShortChapters([octo[0], ch('a', 1, [], [S1('a', 1)]), ch('b', 3, [], [S1('b', 2)])]).length, 3);
 });
 
 console.log(`${passed} tests passed`);

@@ -22,6 +22,8 @@ export type Topic = {
   for_you?: boolean;
   /** The interest this topic grew out of. "Off the map" marks a wildcard. */
   tag?: string | null;
+  /** The Explore headline it was picked from, when the research could not carry that headline and it was retitled. */
+  picked_headline?: string | null;
 };
 
 export type Segment = {
@@ -191,6 +193,12 @@ export async function listIdeas(): Promise<Ideas> {
 }
 
 /** Asks for a story to be made from an idea. It starts at once if there is room, and otherwise takes its turn in the queue. */
+/** Tells the server which ideas came into view in Explore, so the share queued is counted among ideas people saw. */
+export function markSeen(ids: string[]): void {
+  if (MOCK || ids.length === 0) return;
+  call({ action: 'seen', ids }, 'shelf').catch(() => {});
+}
+
 /** Fills a new person's Explore with ideas right away, rather than a few a minute. */
 export function stockExplore(): void {
   if (MOCK) return;
