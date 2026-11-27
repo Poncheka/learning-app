@@ -2,6 +2,8 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<link rel="icon" href="/favicon.png" type="image/png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>{{TITLE}}. A story from Pliny</title>
 <meta name="description" content="{{DESCRIPTION}}">
@@ -15,6 +17,17 @@
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#F7F7F4">
+<link rel="preconnect" href="https://ctssexvgotcdbuvlkrou.supabase.co" crossorigin>
+<script>
+// The story is asked for before anything else on the page loads, so who sent it shows sooner.
+(function () {
+  var m = location.pathname.match(/^\/s\/([a-z0-9-]+)/);
+  if (!m) return;
+  var r = (new URLSearchParams(location.search).get('r') || '').toLowerCase();
+  window.PLINY_FIRST = fetch('https://ctssexvgotcdbuvlkrou.supabase.co/functions/v1/site?story=' + m[1] + (r ? '&r=' + encodeURIComponent(r) : ''))
+    .then(function (res) { return res.json().then(function (d) { return { ok: res.ok, d: d }; }); });
+})();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">

@@ -50,8 +50,10 @@ input.nudge{animation:nudge .42s ease;outline:none;border-color:var(--red)!impor
 .play{width:72px;height:72px;border-radius:50%;border:0;background:var(--ink);color:var(--yellow);display:flex;align-items:center;justify-content:center;flex:none;box-shadow:4px 4px 0 var(--red)}
 .play svg{fill:currentColor}
 .track{flex:1}
-.bar{height:6px;border-radius:3px;background:var(--line)}
-.bar i{display:block;height:6px;border-radius:3px;background:var(--ink);width:0}
+.bar{position:relative;height:6px;border-radius:3px;background:var(--line);cursor:pointer;touch-action:none}
+.bar::before{content:'';position:absolute;left:0;right:0;top:-12px;bottom:-12px}
+.bar i{position:relative;display:block;height:6px;border-radius:3px;background:var(--ink);width:0;pointer-events:none}
+.bar i::after{content:'';position:absolute;right:-8px;top:-5px;width:16px;height:16px;border-radius:50%;background:var(--ink)}
 .left{font-weight:600;font-size:16px;margin-top:10px}
 .waiting{font-size:14px;color:var(--gray);margin-top:12px;line-height:1.4}
 .pitch{background:var(--ink);color:var(--paper);padding:28px 20px 30px}

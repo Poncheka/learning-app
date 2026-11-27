@@ -1,7 +1,7 @@
 // Share this story: a link to the story on itspliny.com that anyone can play in full. Opened from
 // the wrap screen, the player and the Library. Friends who join the waitlist move the sharer up.
 import { useEffect, useRef, useState } from 'react';
-import { ActivityIndicator, Share, StyleSheet, Switch, Text, View } from 'react-native';
+import { ActivityIndicator, Platform, Share, StyleSheet, Switch, Text, View } from 'react-native';
 
 import { BottomSheet } from '@/components/BottomSheet';
 import { CoverTile } from '@/components/covers';
@@ -67,13 +67,13 @@ export function ShareSheet({ lessonId, title, onClose }: { lessonId: string | nu
   };
   const closed = () => {
     const url = handOff.current;
-    const said = shown?.title ?? title;
     handOff.current = null;
     setShown(null);
     setShared(null);
-    // One message with the link inside it. Copy then copies the words and the link together, and a
-    // text shows the story's preview card under them.
-    if (url) setTimeout(() => Share.share({ message: `You gotta hear this! ${said}\n${url}` }).catch(() => {}), 50);
+    // Only the link goes to iOS, so Copy there copies just the link, and a text shows the story's
+    // preview card with its title and artwork. iOS can't take different words for Messages and
+    // for Copy without a new native build.
+    if (url) setTimeout(() => Share.share(Platform.OS === 'ios' ? { url } : { message: url }).catch(() => {}), 50);
   };
 
   return (
@@ -109,8 +109,8 @@ export function ShareSheet({ lessonId, title, onClose }: { lessonId: string | nu
 
       <View style={styles.note}>
         <Text style={styles.noteText}>
-          {shared?.finishing ? 'The rest of this story gets finished once you send it, so friends can hear all of it. ' : 'Friends can hear the whole story free. '}
-          Each one who joins the waitlist moves you up.
+          {shared?.finishing ? 'The rest of this story gets finished once you send it. ' : ''}
+          Each friend who joins the waitlist moves you up.
         </Text>
       </View>
 

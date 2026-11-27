@@ -82,7 +82,7 @@
     var before = story.chapters.slice(0, at).reduce(function (s, c) { return s + c.seconds; }, 0);
     var done = finished ? seconds() : before + (audio.currentTime || 0);
     var pct = Math.min(100, (done / Math.max(1, seconds())) * 100);
-    $('fill').style.width = pct + '%';
+    if (!dragging) $('fill').style.width = pct + '%';
     $('bar').setAttribute('aria-valuenow', String(Math.round(pct)));
     $('left').textContent = finished ? 'Finished' : clock(seconds() - done) + ' left';
     paintChapters();
@@ -119,10 +119,14 @@
       li.append(b); ol.append(li);
     });
   }
-  $('chapters-toggle').addEventListener('click', function () {
-    var open = $('chapter-list').hidden;
+  function showChapters(open) {
     $('chapter-list').hidden = !open;
     $('chapters-toggle').setAttribute('aria-expanded', open ? 'true' : 'false');
+  }
+  $('chapters-toggle').addEventListener('click', function () { showChapters($('chapter-list').hidden); });
+  // A tap anywhere outside the list folds it away again.
+  document.addEventListener('click', function (e) {
+    if (!$('chapter-list').hidden && !$('chapters').contains(e.target)) showChapters(false);
   });
 
   function playChapter(i) {
@@ -160,6 +164,53 @@
     $('ended').hidden = false;
   }
 
+  // ---------- Scrubbing ----------
+  // Dragging along the bar moves through the whole story, across chapters. Only finished chapters
+  // can be reached: a drag past them stops at the end of the last one ready.
+  var seekTo = null, dragging = false;
+  function seconds_at(fraction) {
+    var total = seconds(), target = fraction * total, i = 0, before = 0;
+    while (i < story.chapters.length - 1 && before + story.chapters[i].seconds <= target) { before += story.chapters[i].seconds; i++; }
+    var last = -1;
+    story.chapters.forEach(function (c, n) { if (c.ready) last = n; });
+    if (last < 0) return null;
+    // Keep within what has been made.
+    var firstGap = story.chapters.findIndex(function (c) { return !c.ready; });
+    if (firstGap >= 0 && i >= firstGap) { i = firstGap - 1; if (i < 0) return null; before = story.chapters.slice(0, i).reduce(function (s, c) { return s + c.seconds; }, 0); target = before + story.chapters[i].seconds - 1; }
+    return { chapter: i, offset: Math.max(0, target - before) };
+  }
+  function fractionAt(x) {
+    var r = $('bar').getBoundingClientRect();
+    return Math.min(1, Math.max(0, (x - r.left) / r.width));
+  }
+  function preview(f) { $('fill').style.width = (f * 100) + '%'; }
+  function commit(f) {
+    var spot = seconds_at(f);
+    dragging = false;
+    if (!spot) return paint();
+    finished = false; wanted = true;
+    if (spot.chapter === at && audio.src) {
+      audio.currentTime = spot.offset;
+      audio.play().catch(function () {});
+    } else {
+      seekTo = spot.offset;
+      playChapter(spot.chapter);
+    }
+    paint();
+  }
+  $('bar').addEventListener('pointerdown', function (e) {
+    if (!story) return;
+    dragging = true;
+    $('bar').setPointerCapture(e.pointerId);
+    preview(fractionAt(e.clientX));
+  });
+  $('bar').addEventListener('pointermove', function (e) { if (dragging) preview(fractionAt(e.clientX)); });
+  $('bar').addEventListener('pointerup', function (e) { if (dragging) commit(fractionAt(e.clientX)); });
+  $('bar').addEventListener('pointercancel', function () { dragging = false; paint(); });
+  audio.addEventListener('loadedmetadata', function () {
+    if (seekTo !== null) { audio.currentTime = Math.min(seekTo, Math.max(0, (audio.duration || seekTo + 1) - 1)); seekTo = null; }
+  });
+
   audio.addEventListener('ended', function () { playChapter(at + 1); });
   ['play', 'pause', 'timeupdate', 'loadedmetadata'].forEach(function (e) { audio.addEventListener(e, paint); });
   audio.addEventListener('error', function () {
@@ -185,11 +236,10 @@
 
   var mine = null;
   function myLink() { return location.origin + '/s/' + slug + (mine ? '?r=' + mine : ''); }
-  // Sharing from the website copies the link, words and all, and says so.
+  // Sharing from the website copies the link alone, and says so.
   function copyLink() {
-    var text = 'You gotta hear this! ' + story.title + '\n' + myLink();
     var done = function () { toast('Copied to clipboard'); };
-    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, function () { prompt('Copy the link', myLink()); });
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(myLink()).then(done, function () { prompt('Copy the link', myLink()); });
     else prompt('Copy the link', myLink());
   }
   function toast(text) { var t = $('toast'); t.textContent = text; t.hidden = false; setTimeout(function () { t.hidden = true; }, 2200); }
@@ -291,7 +341,7 @@
   if (!isNaN(early)) { paintArt($('cover'), early); paintArt($('thumb'), early); }
 
   if (!slug) return missing();
-  load().then(function (r) {
+  (window.PLINY_FIRST ? window.PLINY_FIRST.catch(load) : load()).then(function (r) {
     if (!r.ok) return missing();
     story = r.d;
     fill();
