@@ -1,0 +1,1670 @@
+{
+ "ai": {
+  "chosen": [
+   {
+    "arm": "ai",
+    "subject": "Superfluidity",
+    "headline": "The liquid that climbs out of its container",
+    "interest": "Weird science",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Self-healing concrete",
+    "headline": "The concrete that uses bacteria to heal cracks",
+    "interest": "Inventions",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Fecal microbiota transplant",
+    "headline": "The poop transplant that treats gut infections",
+    "interest": "Medical oddities",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Pet Rock",
+    "headline": "The pet rocks sold in boxes with air holes",
+    "interest": "Money and scams",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Mimic octopus",
+    "headline": "The octopus that impersonates venomous animals",
+    "interest": "Marine biology",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Neutrino oscillation",
+    "headline": "Why do neutrinos change type as they travel?",
+    "interest": "Particle physics",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Sloth moth",
+    "headline": "The moths that live in sloth fur",
+    "interest": "Off the map",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Non-Newtonian fluid",
+    "headline": "The liquid you can run across but sink into",
+    "interest": "Weird science",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Auto-brewery syndrome",
+    "headline": "Why do some people brew alcohol in their guts?",
+    "interest": "Medical oddities",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Rai stones",
+    "headline": "The stone money that stayed put when spent",
+    "interest": "Money and scams",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Parrotfish",
+    "headline": "The fish that sleeps in a bubble of mucus",
+    "interest": "Marine biology",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Positronium",
+    "headline": "The atom made of matter and antimatter",
+    "interest": "Particle physics",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Satin bowerbird",
+    "headline": "The bird that gathers blue things to find a mate",
+    "interest": "Off the map",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Republic of Cospaia",
+    "headline": "The village that became a country by mistake",
+    "interest": "Weird history",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Ice spike",
+    "headline": "Why do some ice cubes grow spikes?",
+    "interest": "Weird science",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Atmos clock",
+    "headline": "The clock powered by changes in air temperature",
+    "interest": "Inventions",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Alpha-gal syndrome",
+    "headline": "Why can a tick bite make you allergic to meat?",
+    "interest": "Medical oddities",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Playing card money",
+    "headline": "The playing cards that became money in Canada",
+    "interest": "Money and scams",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Elysia marginata",
+    "headline": "The sea slug that sheds its body and regrows it",
+    "interest": "Marine biology",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Higgs mechanism",
+    "headline": "Why do some particles get mass from empty space?",
+    "interest": "Particle physics",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Museum of Bad Art",
+    "headline": "The museum that collects art too bad to ignore",
+    "interest": "Off the map",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Leidenfrost effect",
+    "headline": "Why do water drops skate on a hot pan?",
+    "interest": "Weird science",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Microwave oven",
+    "headline": "The melted candy bar that inspired the microwave",
+    "interest": "Inventions",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Maggot therapy",
+    "headline": "Why do doctors put maggots in wounds?",
+    "interest": "Medical oddities",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "The Million Dollar Homepage",
+    "headline": "The student who sold pixels for a million dollars",
+    "interest": "Money and scams",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Lybia edmondsoni",
+    "headline": "The crab that fights with anemones in its claws",
+    "interest": "Marine biology",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Quantum tunnelling",
+    "headline": "How can particles cross barriers without enough energy?",
+    "interest": "Particle physics",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Kintsugi",
+    "headline": "The art of mending broken pots with gold",
+    "interest": "Off the map",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Feed sack dress",
+    "headline": "Why did flour sacks come in dress prints?",
+    "interest": "Weird history",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Gallium",
+    "headline": "The metal that melts in your hand",
+    "interest": "Weird science",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Hook-and-loop fastener",
+    "headline": "The fastener inspired by burrs on a dog's fur",
+    "interest": "Inventions",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Alien hand syndrome",
+    "headline": "Why can a hand act against its owner's wishes?",
+    "interest": "Medical oddities",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Plate money",
+    "headline": "The coins that weighed nearly 20 kilograms",
+    "interest": "Money and scams",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Scaly-foot gastropod",
+    "headline": "The deep-sea snail with an iron shell",
+    "interest": "Marine biology",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Antihydrogen",
+    "headline": "The antimatter atoms trapped for 16 minutes",
+    "interest": "Particle physics",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Axolotl",
+    "headline": "The salamander that regrows legs and brain tissue",
+    "interest": "Off the map",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Diamagnetism",
+    "headline": "The frog that levitated in a magnetic field",
+    "interest": "Weird science",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Absorption refrigerator",
+    "headline": "The fridge that runs on a flame",
+    "interest": "Inventions",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Aquagenic urticaria",
+    "headline": "Why does water give some people hives?",
+    "interest": "Medical oddities",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Wörgl experiment",
+    "headline": "The town whose money needed a monthly stamp",
+    "interest": "Money and scams",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Macropinna microstoma",
+    "headline": "The fish that sees through its transparent head",
+    "interest": "Marine biology",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Quark–gluon plasma",
+    "headline": "The particle soup made by smashing gold atoms",
+    "interest": "Particle physics",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Pando (tree)",
+    "headline": "The forest that shares a single root system",
+    "interest": "Off the map",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Richard Booth",
+    "headline": "The bookseller who declared his town a kingdom",
+    "interest": "Weird history",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Shape-memory alloy",
+    "headline": "The metal that remembers its shape",
+    "interest": "Weird science",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Cyanoacrylate",
+    "headline": "The glue that hardens on contact with moisture",
+    "interest": "Inventions",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Fibrodysplasia ossificans progressiva",
+    "headline": "The disease that turns muscle into bone",
+    "interest": "Medical oddities",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Canadian Tire money",
+    "headline": "The shop coupons other stores accept as cash",
+    "interest": "Money and scams",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Hawaiian bobtail squid",
+    "headline": "The squid that hides by lighting up",
+    "interest": "Marine biology",
+    "method": "v2 idea writer, model chose the subject"
+   },
+   {
+    "arm": "ai",
+    "subject": "Double-slit experiment",
+    "headline": "Why do single electrons form a wave pattern?",
+    "interest": "Particle physics",
+    "method": "v2 idea writer, model chose the subject"
+   }
+  ],
+  "calls": [
+   {
+    "arm": "ai",
+    "usage": {
+     "input_tokens": 6626,
+     "input_tokens_details": {
+      "cache_write_tokens": 6623,
+      "cache_write_tokens_details": {
+       "ttl_12h_tokens": 0,
+       "ttl_30m_tokens": 6623
+      },
+      "cached_tokens": 0
+     },
+     "output_tokens": 1091,
+     "output_tokens_details": {
+      "reasoning_tokens": 928
+     },
+     "total_tokens": 7717
+    },
+    "error": null
+   },
+   {
+    "arm": "ai",
+    "usage": {
+     "input_tokens": 6696,
+     "input_tokens_details": {
+      "cache_write_tokens": 6693,
+      "cache_write_tokens_details": {
+       "ttl_12h_tokens": 0,
+       "ttl_30m_tokens": 6693
+      },
+      "cached_tokens": 0
+     },
+     "output_tokens": 915,
+     "output_tokens_details": {
+      "reasoning_tokens": 744
+     },
+     "total_tokens": 7611
+    },
+    "error": null
+   },
+   {
+    "arm": "ai",
+    "usage": {
+     "input_tokens": 6759,
+     "input_tokens_details": {
+      "cache_write_tokens": 6756,
+      "cache_write_tokens_details": {
+       "ttl_12h_tokens": 0,
+       "ttl_30m_tokens": 6756
+      },
+      "cached_tokens": 0
+     },
+     "output_tokens": 1197,
+     "output_tokens_details": {
+      "reasoning_tokens": 1034
+     },
+     "total_tokens": 7956
+    },
+    "error": null
+   },
+   {
+    "arm": "ai",
+    "usage": {
+     "input_tokens": 6843,
+     "input_tokens_details": {
+      "cache_write_tokens": 6840,
+      "cache_write_tokens_details": {
+       "ttl_12h_tokens": 0,
+       "ttl_30m_tokens": 6840
+      },
+      "cached_tokens": 0
+     },
+     "output_tokens": 1338,
+     "output_tokens_details": {
+      "reasoning_tokens": 1171
+     },
+     "total_tokens": 8181
+    },
+    "error": null
+   },
+   {
+    "arm": "ai",
+    "usage": {
+     "input_tokens": 6933,
+     "input_tokens_details": {
+      "cache_write_tokens": 6930,
+      "cache_write_tokens_details": {
+       "ttl_12h_tokens": 0,
+       "ttl_30m_tokens": 6930
+      },
+      "cached_tokens": 0
+     },
+     "output_tokens": 1208,
+     "output_tokens_details": {
+      "reasoning_tokens": 1034
+     },
+     "total_tokens": 8141
+    },
+    "error": null
+   },
+   {
+    "arm": "ai",
+    "usage": {
+     "input_tokens": 7011,
+     "input_tokens_details": {
+      "cache_write_tokens": 7008,
+      "cache_write_tokens_details": {
+       "ttl_12h_tokens": 0,
+       "ttl_30m_tokens": 7008
+      },
+      "cached_tokens": 0
+     },
+     "output_tokens": 1183,
+     "output_tokens_details": {
+      "reasoning_tokens": 1019
+     },
+     "total_tokens": 8194
+    },
+    "error": null
+   },
+   {
+    "arm": "ai",
+    "usage": {
+     "input_tokens": 7096,
+     "input_tokens_details": {
+      "cache_write_tokens": 7093,
+      "cache_write_tokens_details": {
+       "ttl_12h_tokens": 0,
+       "ttl_30m_tokens": 7093
+      },
+      "cached_tokens": 0
+     },
+     "output_tokens": 967,
+     "output_tokens_details": {
+      "reasoning_tokens": 802
+     },
+     "total_tokens": 8063
+    },
+    "error": null
+   },
+   {
+    "arm": "ai",
+    "usage": {
+     "input_tokens": 7171,
+     "input_tokens_details": {
+      "cache_write_tokens": 7168,
+      "cache_write_tokens_details": {
+       "ttl_12h_tokens": 0,
+       "ttl_30m_tokens": 7168
+      },
+      "cached_tokens": 0
+     },
+     "output_tokens": 886,
+     "output_tokens_details": {
+      "reasoning_tokens": 719
+     },
+     "total_tokens": 8057
+    },
+    "error": null
+   },
+   {
+    "arm": "ai",
+    "usage": {
+     "input_tokens": 7260,
+     "input_tokens_details": {
+      "cache_write_tokens": 7257,
+      "cache_write_tokens_details": {
+       "ttl_12h_tokens": 0,
+       "ttl_30m_tokens": 7257
+      },
+      "cached_tokens": 0
+     },
+     "output_tokens": 904,
+     "output_tokens_details": {
+      "reasoning_tokens": 740
+     },
+     "total_tokens": 8164
+    },
+    "error": null
+   },
+   {
+    "arm": "ai",
+    "usage": {
+     "input_tokens": 7344,
+     "input_tokens_details": {
+      "cache_write_tokens": 7341,
+      "cache_write_tokens_details": {
+       "ttl_12h_tokens": 0,
+       "ttl_30m_tokens": 7341
+      },
+      "cached_tokens": 0
+     },
+     "output_tokens": 1112,
+     "output_tokens_details": {
+      "reasoning_tokens": 954
+     },
+     "total_tokens": 8456
+    },
+    "error": null
+   }
+  ]
+ },
+ "dyk": {
+  "chosen": [
+   {
+    "arm": "dyk",
+    "subject": "Observatorio 1873",
+    "headline": "The old military lookout with a whale museum",
+    "interest": "Marine biology",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "... that Mexico's Observatorio 1873 began as a military lookout and observatory, and now includes a whale museum, an iguana sanctuary and a zip line?",
+    "candidates": [
+     "Harry Leons",
+     "William J. Fox",
+     "Observatorio 1873",
+     "The Last of Us season 2",
+     "Topsail Hill Preserve State Park",
+     "1935 Free City of Danzig parliamentary election",
+     "Denison Trough",
+     "Jessica Forrest"
+    ]
+   },
+   {
+    "arm": "dyk",
+    "subject": "Megistaspis",
+    "headline": "Why do some trilobite fossils have cat ears?",
+    "interest": "Weird science",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "... that fossil traders frequently outline the antennae of the trilobite Megistaspis with \"cat ears\"?",
+    "candidates": [
+     "black-rumped magpie",
+     "Pheidole navigans",
+     "Edward Victor Appleton",
+     "Faecalibacterium prausnitzii",
+     "Kilkenny Union Workhouse",
+     "Acer wehri",
+     "Megistaspis",
+     "Bulletproof Heart (song)"
+    ]
+   },
+   {
+    "arm": "dyk",
+    "subject": "Jessie Wright",
+    "headline": "The rocking bed that helped polio patients breathe",
+    "interest": "Medical oddities",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "... that Jessie Wright, director of physical medicine at the D.T. Watson Home for Crippled Children, helped invent the rocking bed as a treatment for polio?",
+    "candidates": [
+     "Jessie Wright",
+     "Sixth Doctor",
+     "Dorothy Spotswood",
+     "Blood on the Saddle (song)",
+     "Dame Louisa Aldrich-Blake Memorial",
+     "John Fasel",
+     "sanquette",
+     "Return of the Hero (The Flying Doctors)"
+    ]
+   },
+   {
+    "arm": "dyk",
+    "subject": "Foundation of the State Crisis",
+    "headline": "The emperor who fought 15 years over his heir",
+    "interest": "Weird history",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "... that, when the Wanli Emperor objected to naming his eldest son as heir because his mother had been a former palace servant, the Emperor's mother reminded him that she had been a palace servant too?",
+    "candidates": [
+     "John Laugharne",
+     "Point Clear Martello Tower",
+     "Lazăr Sfera",
+     "Sabra Field",
+     "Foundation of the State Crisis",
+     "John Darrenkamp",
+     "Royal Khmer Socialist Youth",
+     "Thihapate III of Taungdwin"
+    ]
+   },
+   {
+    "arm": "dyk",
+    "subject": "Sagar Iron Suspension Bridge",
+    "headline": "The bridge tested with several elephants at once",
+    "interest": "Inventions",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "... that an iron suspension bridge built in 1830 supported the weight of several elephants at once?",
+    "candidates": [
+     "685 First Avenue",
+     "Sagar Iron Suspension Bridge",
+     "Al-Baitul Amien Mosque",
+     "Sunnyside Garden Arena",
+     "Radiant Nuclear",
+     "Gropius House",
+     "Simone Giertz",
+     "Arthur Hiscoe"
+    ]
+   },
+   {
+    "arm": "dyk",
+    "subject": "Jorge Odón",
+    "headline": "The bottle trick that inspired a childbirth device",
+    "interest": "Medical oddities",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "... that an Argentine auto mechanic invented a medical device to assist with difficult childbirth?",
+    "candidates": [
+     "Doctor Who season 3",
+     "400 First Avenue",
+     "Kotaro Tatsumi",
+     "Punisher skull",
+     "1987 Aegean crisis",
+     "Muriel Wilson",
+     "Jorge Odón",
+     "The Cure (Olivia Rodrigo song)"
+    ]
+   },
+   {
+    "arm": "dyk",
+    "subject": "born secret",
+    "headline": "The nuclear secrets classified from their creation",
+    "interest": "Particle physics",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "... that U.S. law states that information on atomic weapons is born secret from the moment of creation?",
+    "candidates": [
+     "Umarjadi Njotowijono",
+     "Fernald Feed Materials Production Center",
+     "Nuclear strikes on hurricanes",
+     "EarthBound Halloween Hack",
+     "Leik Myrabo",
+     "born secret",
+     "John Comfort Fillmore",
+     "Mount Shchekavytsia orgy"
+    ]
+   },
+   {
+    "arm": "dyk",
+    "subject": "Austruca mjoebergi",
+    "headline": "The crabs that wave back at matching rivals",
+    "interest": "Marine biology",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "... that, when a male banana fiddler crab waves its appendage, only similarly endowed males also wave?",
+    "candidates": [
+     "Austruca mjoebergi",
+     "Ahenzae",
+     "Admiral Sea Battles",
+     "Sparidentex hasta",
+     "Dan Garza",
+     "Himmel, Erde, Luft und Meer",
+     "Framoi Bérété",
+     "Bartłomiej Kubkowski"
+    ]
+   },
+   {
+    "arm": "dyk",
+    "subject": "Bar Kokhba Revolt",
+    "headline": "The rebels who made their coins from Roman money",
+    "interest": "Money and scams",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "... that coins minted by Jewish rebels during the Bar Kokhba Revolt counted their years by the \"redemption\" and \"freedom of Israel\", while its leader was described as the nasi of Israel?",
+    "candidates": [
+     "Arlecchino (Genshin Impact)",
+     "Bar Kokhba Revolt",
+     "Morton Bryan Wharton",
+     "Jurnal Perempuan",
+     "2010 Arizona Proposition 112",
+     "Eorcengota",
+     "flag of Uganda",
+     "KSWB-TV"
+    ]
+   },
+   {
+    "arm": "dyk",
+    "subject": "Grace and St. Stephen's Episcopal Church",
+    "headline": "The church that became a nightclub, then a church",
+    "interest": "Off the map",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "... that a church in Colorado merged with another congregation, was sold, became a nightclub, and then was bought by an offshoot of the merged congregation?",
+    "candidates": [
+     "Murder of Mary Theresa Simpson",
+     "SS James H. Reed",
+     "Gabi Moura",
+     "Satrio Wiratama",
+     "Seven Floors",
+     "Paul Rock (politician)",
+     "Grace and St. Stephen's Episcopal Church",
+     "Camp of the Woods"
+    ]
+   },
+   {
+    "arm": "dyk",
+    "subject": "Bethke brothers",
+    "headline": "The brothers who escaped East Germany three ways",
+    "interest": "Inventions",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "... that the three Bethke brothers separately escaped from East Germany using an air mattress, a zip line and ultralight aircraft?",
+    "candidates": [
+     "Walter Neuhäusser",
+     "Bethke brothers",
+     "New London Cenotaph",
+     "Boston Korea",
+     "2001 Biggin Hill Airshow disasters",
+     "Perth County Courthouse",
+     "Tokyo Opera City Concert Hall",
+     "Epano Phournos tholos"
+    ]
+   },
+   {
+    "arm": "dyk",
+    "subject": "Werth v. Taylor",
+    "headline": "The doctors who transfused blood despite a refusal",
+    "interest": "Medical oddities",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "... that, under Michigan case law, doctors are not always liable for giving blood transfusions to Jehovah's Witnesses who have explicitly refused them?",
+    "candidates": [
+     "Charlie (goat)",
+     "Élisabeth Le Bas",
+     "assassination of Patrice Lumumba",
+     "Werth v. Taylor",
+     "Jane Madders",
+     "O'Donnell-Luria–Rodan syndrome",
+     "The Ark (Doctor Who)",
+     "Edmund Wojtyła"
+    ]
+   },
+   {
+    "arm": "dyk",
+    "subject": "University of Chicago",
+    "headline": "The nuclear reactor built under a football stadium",
+    "interest": "Particle physics",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "... that scientists at the University of Chicago achieved a self-sustaining nuclear chain reaction under the stands of a football stadium?",
+    "candidates": [
+     "Crud (radioactive waste)",
+     "Horizon Call of the Mountain",
+     "Franklin Dollar",
+     "Chama (album)",
+     "University of Chicago",
+     "1986–1988 radioactive milk distribution in Mexico",
+     "Zhenhao Zou",
+     "Burndy Library"
+    ]
+   },
+   {
+    "arm": "dyk",
+    "subject": "Autocomplete Interview",
+    "headline": "The celebrity interviews built from Google searches",
+    "interest": "Off the map",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "... that a popular series interviews celebrities without an interviewer?",
+    "candidates": [
+     "Pentecostal Churches of the Apostolic Faith",
+     "Variations on \"Trockne Blumen\"",
+     "Karencici",
+     "Ahmad Soedarsono",
+     "Autocomplete Interview",
+     "Daz Black",
+     "WZVN-TV",
+     "Haibane Renmei"
+    ]
+   },
+   {
+    "arm": "dyk",
+    "subject": "Robert J. Van de Graaff",
+    "headline": "The particle accelerator powered by a moving belt",
+    "interest": "Particle physics",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "... that Robert Van de Graaff, inventor of the Van de Graaff generator, turned to physics after injuries kept him from playing football at Alabama?",
+    "candidates": [
+     "James Findley Nolan",
+     "Robert J. Van de Graaff",
+     "Plutonium(III) oxalate",
+     "Jim Fletcher",
+     "Nubian ibex",
+     "Dream Zone",
+     "Geoffrey de Henlaw",
+     "Zachary Fisk"
+    ]
+   },
+   {
+    "arm": "dyk",
+    "subject": "Košice gold treasure",
+    "headline": "The worker who found 2,920 hidden gold coins",
+    "interest": "Money and scams",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "... that 2,920 gold coins, a gold chain from the Renaissance period, three gold medals, and an engraved copper casket were found by a construction worker?",
+    "candidates": [
+     "Field Guide to Memory",
+     "Tyrell Fortune",
+     "Košice gold treasure",
+     "Bartley MRT station",
+     "Marrying the Dark Knight (For Her Money)",
+     "Bunker Hill Monument",
+     "Dollar Savings Bank Building",
+     "Esther Swirk Brown"
+    ]
+   },
+   {
+    "arm": "dyk",
+    "subject": "Margaret (moon)",
+    "headline": "The moon named after three women at once",
+    "interest": "Weird science",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "... that Uranus's moon Margaret is named after a Shakespearean character, an astronomer's daughter, and its discoverer's mother?",
+    "candidates": [
+     "Larry Appelbaum",
+     "Democratic Front for the Liberation of Angola",
+     "Margaret (moon)",
+     "Jane Rigby",
+     "LHS 1903",
+     "columbine sawfly",
+     "Antirrhinum barrelieri",
+     "geology of Middle-earth"
+    ]
+   },
+   {
+    "arm": "dyk",
+    "subject": "1908 California Amendment 14",
+    "headline": "The amendment that passed by two votes in 185,000",
+    "interest": "Weird history",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "... that California voters approved a 1908 constitutional amendment by just two votes out of more than 185,000 cast?",
+    "candidates": [
+     "Boston Navy Yard",
+     "1908 California Amendment 14",
+     "Rossini in Wildbad",
+     "Battle of Burnt Corn",
+     "Mike Wanchuk",
+     "Bow-wow Battle",
+     "Nejishiki",
+     "Hongguang Emperor"
+    ]
+   },
+   {
+    "arm": "dyk",
+    "subject": "Plato's Atlantis",
+    "headline": "The runway show where humans evolved for the sea",
+    "interest": "Marine biology",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "... that Alexander McQueen's final runway collection (dress pictured) featured models styled as creatures who had evolved to return to the sea?",
+    "candidates": [
+     "Kyle Green (basketball)",
+     "Muriel Hannah",
+     "The One Where Michael Leaves",
+     "Coral Shaw",
+     "Plato's Atlantis",
+     "Tom Maulson",
+     "Hira Singh Chinaria",
+     "Seasons of Change"
+    ]
+   },
+   {
+    "arm": "dyk",
+    "subject": "Terry Ball's snail farms",
+    "headline": "The tax dodge built on snail farms",
+    "interest": "Money and scams",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "... that \"cannibalism, group sex, and snail orgies\" hindered a tax avoidance scheme by the son of Tommy Ball?",
+    "candidates": [
+     "Schermerhorn Row Block",
+     "Terry Ball's snail farms",
+     "Better in Denim",
+     "Nik-O-Lok Company",
+     "Cecil Kent Drinker",
+     "Cable Bahamas",
+     "Peter Brownell",
+     "Chantal Jaquet"
+    ]
+   },
+   {
+    "arm": "dyk",
+    "subject": "Gizmodgery",
+    "headline": "The album recorded entirely with toy instruments",
+    "interest": "Off the map",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "... that the band Self recorded an entire album using only toy instruments?",
+    "candidates": [
+     "Romance (Camila Cabello album)",
+     "Deir el-Balah sarcophagi",
+     "2014 Isla Vista killings",
+     "Liew Mun Leong",
+     "Gizmodgery",
+     "Fissuroderes cthulhu",
+     "Henry Morford",
+     "Raymonde Abecassis"
+    ]
+   },
+   {
+    "arm": "dyk",
+    "subject": "Nellie Breen",
+    "headline": "The tap dancer who performed on the radio",
+    "interest": "Weird history",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "... that Nellie Breen is believed to have performed the first tap dance broadcast on radio in 1922?",
+    "candidates": [
+     "Pine Gap Women's Peace Camp",
+     "Thomas Duke",
+     "Phylakitai",
+     "Battle of Lake Nyasa",
+     "Kenneth Chen (Singaporean politician)",
+     "List of consorts and children of the Jiajing Emperor",
+     "Nellie Breen",
+     "Ildibad"
+    ]
+   },
+   {
+    "arm": "dyk",
+    "subject": "Castelluccio di Norcia",
+    "headline": "The village that dug snow tunnels to church",
+    "interest": "Off the map",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "... that winter snows were so deep in Castelluccio di Norcia that residents dug tunnels to reach the church?",
+    "candidates": [
+     "Rush Hour (sculpture)",
+     "Inazuma (Genshin Impact)",
+     "Aeroplane Mosque",
+     "Auckland Women's Suffrage Memorial",
+     "She Knows Too Much",
+     "Castelluccio di Norcia",
+     "Fruit Love Island",
+     "LOT Polish Airlines Flight 703"
+    ]
+   },
+   {
+    "arm": "dyk",
+    "subject": "Pangram (AI detector)",
+    "headline": "The tool that found AI reviewing AI research",
+    "interest": "Inventions",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "... that an analysis by Pangram found that 21% of peer reviews for a machine-learning conference were AI-generated?",
+    "candidates": [
+     "Amazon-class sloop",
+     "Pierce–Hichborn House",
+     "First Baptist Church–West",
+     "Baranof totem pole",
+     "Letov Š-10",
+     "Pangram (AI detector)",
+     "castle of Smar Jbeil",
+     "Bosco Nordio"
+    ]
+   },
+   {
+    "arm": "dyk",
+    "subject": "Lunar GNSS Receiver Experiment",
+    "headline": "The GPS receiver that worked on the Moon",
+    "interest": "Weird science",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "... that the Lunar GNSS Receiver Experiment demonstrated that GPS and Galileo signals can be received and used for navigation all the way to the Moon's surface?",
+    "candidates": [
+     "Charles Thau",
+     "Pathfinder Ryder",
+     "Annamite striped rabbit",
+     "List of recovering species",
+     "Saru (Star Trek: Discovery)",
+     "Vojin Đuričić",
+     "Dolina effect",
+     "Lunar GNSS Receiver Experiment"
+    ]
+   }
+  ],
+  "calls": [
+   {
+    "arm": "dyk",
+    "usage": {
+     "input_tokens": 7445,
+     "input_tokens_details": {
+      "cache_write_tokens": 7442,
+      "cache_write_tokens_details": {
+       "ttl_12h_tokens": 0,
+       "ttl_30m_tokens": 7442
+      },
+      "cached_tokens": 0
+     },
+     "output_tokens": 1113,
+     "output_tokens_details": {
+      "reasoning_tokens": 944
+     },
+     "total_tokens": 8558
+    },
+    "error": null
+   },
+   {
+    "arm": "dyk",
+    "usage": {
+     "input_tokens": 7619,
+     "input_tokens_details": {
+      "cache_write_tokens": 7616,
+      "cache_write_tokens_details": {
+       "ttl_12h_tokens": 0,
+       "ttl_30m_tokens": 7616
+      },
+      "cached_tokens": 0
+     },
+     "output_tokens": 926,
+     "output_tokens_details": {
+      "reasoning_tokens": 755
+     },
+     "total_tokens": 8545
+    },
+    "error": null
+   },
+   {
+    "arm": "dyk",
+    "usage": {
+     "input_tokens": 7618,
+     "input_tokens_details": {
+      "cache_write_tokens": 7615,
+      "cache_write_tokens_details": {
+       "ttl_12h_tokens": 0,
+       "ttl_30m_tokens": 7615
+      },
+      "cached_tokens": 0
+     },
+     "output_tokens": 1051,
+     "output_tokens_details": {
+      "reasoning_tokens": 879
+     },
+     "total_tokens": 8669
+    },
+    "error": null
+   },
+   {
+    "arm": "dyk",
+    "usage": {
+     "input_tokens": 7697,
+     "input_tokens_details": {
+      "cache_write_tokens": 7694,
+      "cache_write_tokens_details": {
+       "ttl_12h_tokens": 0,
+       "ttl_30m_tokens": 7694
+      },
+      "cached_tokens": 0
+     },
+     "output_tokens": 1088,
+     "output_tokens_details": {
+      "reasoning_tokens": 917
+     },
+     "total_tokens": 8785
+    },
+    "error": null
+   },
+   {
+    "arm": "dyk",
+    "usage": {
+     "input_tokens": 6503,
+     "input_tokens_details": {
+      "cache_write_tokens": 6500,
+      "cache_write_tokens_details": {
+       "ttl_12h_tokens": 0,
+       "ttl_30m_tokens": 6500
+      },
+      "cached_tokens": 0
+     },
+     "output_tokens": 149,
+     "output_tokens_details": {
+      "reasoning_tokens": 113
+     },
+     "total_tokens": 6652
+    },
+    "error": null
+   }
+  ]
+ },
+ "unusual": {
+  "chosen": [
+   {
+    "arm": "unusual",
+    "subject": "Cancún Underwater Museum",
+    "headline": "The underwater museum where sculptures become reefs",
+    "interest": "Marine biology",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "A place where works of art are kept several metres beneath sea level.",
+    "candidates": [
+     "Disappearance of Frederick Valentich",
+     "Cancún Underwater Museum",
+     "Ming (clam)",
+     "Goodspaceguy",
+     "Dirty Hungarian Phrasebook",
+     "The Asylum",
+     "Sansha",
+     "Seattle windshield pitting epidemic"
+    ]
+   },
+   {
+    "arm": "unusual",
+    "subject": "Ray cat",
+    "headline": "The plan for cats that change color near radiation",
+    "interest": "Particle physics",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "A proposed genetically engineered breed that glows in presence of nuclear radiation.",
+    "candidates": [
+     "Electronic voice phenomenon",
+     "Pokémon Uranium",
+     "Barrer",
+     "Jo Cameron",
+     "Ray cat",
+     "The Conqueror (1956 film)",
+     "You Suffer",
+     "Russian floating nuclear power station"
+    ]
+   },
+   {
+    "arm": "unusual",
+    "subject": "Veblen good",
+    "headline": "Why do some things sell better when priced higher?",
+    "interest": "Money and scams",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "Goods whose demand increases as price increases, violating the law of demand.",
+    "candidates": [
+     "North Oaks, Minnesota",
+     "Dan Saunders ATM glitch",
+     "SpaceGhostPurrp",
+     "Veblen good",
+     "Operation Bernhard",
+     "Chicago rat hole",
+     "Argumentum ad crumenam",
+     "Jar'Edo Wens hoax"
+    ]
+   },
+   {
+    "arm": "unusual",
+    "subject": "Tingo Group",
+    "headline": "The company that invented millions of customers",
+    "interest": "Money and scams",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "rowspan=\"2\" | A seemingly magical Nigerian agri-fintech company that was once valued for more than $1 billion. Actually discovered to be a personal vehicle for its founder, who's now charged with securities fraud.",
+    "candidates": [
+     "Vue Pa Chay's revolt",
+     "U.S. presidential IQ hoax",
+     "Six nines in pi",
+     "Elizabeth, Lady Hope",
+     "Cello scrotum",
+     "1956 Olympic flame hoax",
+     "Tingo Group",
+     "Spiders Georg"
+    ]
+   },
+   {
+    "arm": "unusual",
+    "subject": "Foreign accent syndrome",
+    "headline": "Why can brain injuries make people sound foreign?",
+    "interest": "Medical oddities",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "A rare medical condition whereby sufferers speak their native language with a foreign accent.",
+    "candidates": [
+     "Thagomizer",
+     "Pepsiman (video game)",
+     "Socotra",
+     "Koro (disease)",
+     "Rex Ronan: Experimental Surgeon",
+     "Foreign accent syndrome",
+     "Eugene Landy",
+     "RAS syndrome"
+    ]
+   },
+   {
+    "arm": "unusual",
+    "subject": "Songs of the Humpback Whale (album)",
+    "headline": "The whale songs pressed onto 10 million records",
+    "interest": "Marine biology",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "An album of whale songs, which due to a giveaway by National Geographic resulted in the largest ever single print run of vinyl records in history.",
+    "candidates": [
+     "Songs of the Humpback Whale (album)",
+     "Aquarius Reef Base",
+     "Fungie",
+     "Brighton and Rottingdean Seashore Electric Railway",
+     "Nightmarchers",
+     "Heladería Coromoto",
+     "Caspian Sea Monster",
+     "Widow's man"
+    ]
+   },
+   {
+    "arm": "unusual",
+    "subject": "JASON reactor",
+    "headline": "The nuclear reactor in a 17th-century building",
+    "interest": "Particle physics",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "The only nuclear reactor in a 17th-century building.",
+    "candidates": [
+     "Mount Shchekavytsia orgy",
+     "The Greenbrier",
+     "Breast physics",
+     "Deutsche Physik",
+     "Radiotrophic fungus",
+     "Furry's theorem",
+     "JASON reactor",
+     "Cartoon physics"
+    ]
+   },
+   {
+    "arm": "unusual",
+    "subject": "Synalpheus pinkfloydi",
+    "headline": "The loud shrimp named after Pink Floyd",
+    "interest": "Marine biology",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "A species of snapping shrimp named after the famous English rock band.",
+    "candidates": [
+     "Synalpheus pinkfloydi",
+     "Lioconcha hieroglyphica",
+     "Lençóis Maranhenses National Park",
+     "Marco Evaristti",
+     "Battle of Fishguard",
+     "Seaman (video game)",
+     "Kingman Reef",
+     "Conger cuddling"
+    ]
+   },
+   {
+    "arm": "unusual",
+    "subject": "Smell of freshly cut grass",
+    "headline": "The smell of cut grass is a plant's alarm call",
+    "interest": "Weird science",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "A nostalgic odor that plays a role in plant communication as a chemical cry of agony.",
+    "candidates": [
+     "Smell of freshly cut grass",
+     "Mariko Aoki phenomenon",
+     "Montauk Project",
+     "Paracerceis sculpta",
+     "Pentagon pizza theory",
+     "Dead Internet theory",
+     "Odagiri effect",
+     "Tiger Mask donation phenomenon"
+    ]
+   },
+   {
+    "arm": "unusual",
+    "subject": "Hypoalgesic effect of swearing",
+    "headline": "Why swearing can make pain easier to bear",
+    "interest": "Weird science",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "Got hurt? Swear the pain away!",
+    "candidates": [
+     "The Beginning Was the End",
+     "Slab City, California",
+     "Almost everywhere",
+     "Hypoalgesic effect of swearing",
+     "Jedi census phenomenon",
+     "Babiniku",
+     "Sylacauga (meteorite)",
+     "Bongcloud Attack"
+    ]
+   },
+   {
+    "arm": "unusual",
+    "subject": "Catatumbo lightning",
+    "headline": "The lake with lightning up to 160 nights a year",
+    "interest": "Weird science",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "At one lake in Venezuela, constant thunderstorms are just a regular occurrence.",
+    "candidates": [
+     "Baynes Bat",
+     "Clickbait",
+     "Catatumbo lightning",
+     "Neischnocolus samonellaacademy",
+     "Antanas Mockus",
+     "Beringer's Lying Stones",
+     "Chronic Lyme disease",
+     "Roblox oof"
+    ]
+   },
+   {
+    "arm": "unusual",
+    "subject": "Guano Islands Act",
+    "headline": "The US law for claiming islands for bird poop",
+    "interest": "Off the map",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "This strange piece of legislation enables citizens of the U.S. to take possession of islands containing guano deposits.",
+    "candidates": [
+     "Vinicunca",
+     "It's So Funny",
+     "Indiana pi bill",
+     "Ricardo López (stalker)",
+     "Guano Islands Act",
+     "Fucking Hell",
+     "Romeo and Juliet (swans)",
+     "Dyatlov Pass incident"
+    ]
+   },
+   {
+    "arm": "unusual",
+    "subject": "Exploding head syndrome",
+    "headline": "Why do some people hear explosions in their sleep?",
+    "interest": "Medical oddities",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "Ever woken up after an hour or two of sleep thinking you've just heard a massive explosion?",
+    "candidates": [
+     "Pink Pistols",
+     "Lord Bloody Wog Rolo",
+     "Harold Davidson",
+     "Exploding head syndrome",
+     "William Utermohlen",
+     "Vagina dentata",
+     "Adrian Carton de Wiart",
+     "Deer penis"
+    ]
+   },
+   {
+    "arm": "unusual",
+    "subject": "Carmona wine urn",
+    "headline": "The 2,000-year-old wine found with human ashes",
+    "interest": "Weird history",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "rowspan=\"2\"| They say a fine wine gets better with age, but this is ridiculous. The 2000-year-old world record holder, and its merely 1700-year-old predecessor.",
+    "candidates": [
+     "On the Cruelty of Really Teaching Computer Science",
+     "1916 Cumberland vs. Georgia Tech football game",
+     "Carmona wine urn",
+     "Arizona State Mine Inspector",
+     "9 November in German history",
+     "Richard N. Swett",
+     "Harry Baals",
+     "Project Mars: A Technical Tale"
+    ]
+   },
+   {
+    "arm": "unusual",
+    "subject": "Polish Beer-Lovers' Party",
+    "headline": "The beer lovers who won seats in parliament",
+    "interest": "Weird history",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "One of the major political powers in Poland in the early 1990s.",
+    "candidates": [
+     "Wiki rabbit hole",
+     "Human torpedo",
+     "Attack of the Dead Men",
+     "War rug",
+     "Gammalsvenskby",
+     "Polish Beer-Lovers' Party",
+     "Pig War (1859)",
+     "1936 Peru v Austria football match"
+    ]
+   },
+   {
+    "arm": "unusual",
+    "subject": "De Grote Donorshow",
+    "headline": "The TV kidney giveaway that was a hoax",
+    "interest": "Medical oddities",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "An apparently terminally ill woman offers her kidney to one of three lucky patients live on TV. Controversy erupts before broadcast, in which it is then revealed that the whole show is a hoax meant to draw attention to the lack of available organ donors in the",
+    "candidates": [
+     "Nitroglycerin (medication)",
+     "De Grote Donorshow",
+     "Retained surgical instruments",
+     "András Toma",
+     "Grape surgery",
+     "S.M. (patient)",
+     "Klüver–Bucy syndrome",
+     "Hardware disease"
+    ]
+   },
+   {
+    "arm": "unusual",
+    "subject": "Conway's Game of Life",
+    "headline": "The game where simple cells can build computers",
+    "interest": "Inventions",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "A simple game with only four rules that people have made beautifully complex machines with. It even has the ability to self-replicate! (See also Brian's Brain above.)",
+    "candidates": [
+     "Conway's Game of Life",
+     "Villaggio Mall",
+     "X-Seed 4000",
+     "M-497 Black Beetle",
+     "Boll Weevil Monument",
+     "Takeru Kobayashi",
+     "Billups Neon Crossing Signal",
+     "The Clock (2010 film)"
+    ]
+   },
+   {
+    "arm": "unusual",
+    "subject": "Mojave phone booth",
+    "headline": "The desert phone booth that got calls worldwide",
+    "interest": "Off the map",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "A public phone booth that stood for several decades in the middle of a desert, miles away from any roads or other structures.",
+    "candidates": [
+     "Free State of Bottleneck",
+     "Spongiforma squarepantsii",
+     "Armin Meiwes",
+     "Timekeeping on Mars",
+     "Nazi UFOs",
+     "Mojave phone booth",
+     "Popetown",
+     "Chupilca del diablo"
+    ]
+   },
+   {
+    "arm": "unusual",
+    "subject": "RP FLIP",
+    "headline": "The research ship that flips upright at sea",
+    "interest": "Inventions",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "A manned ship that was designed to be capsized at a 90° angle for weeks on end.",
+    "candidates": [
+     "Therac-25",
+     "Brazen bull",
+     "RP FLIP",
+     "Apple Polishing Cloth",
+     "Spiral Island",
+     "PZL M-15 Belphegor",
+     "State Highway 78 (New Zealand)",
+     "Republic XF-84H Thunderscreech"
+    ]
+   },
+   {
+    "arm": "unusual",
+    "subject": "Taxation of illegal income in the United States",
+    "headline": "Why does the IRS tax stolen money?",
+    "interest": "Money and scams",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "Don't worry: you can deduct your illegal activity expenses.",
+    "candidates": [
+     "Katy Hudson (album)",
+     "Moscow Gold (Spain)",
+     "Micromort",
+     "Le Rêve (Picasso)",
+     "1933 double eagle",
+     "Bonsai Kitten",
+     "Taxation of illegal income in the United States",
+     "North Hollywood shootout"
+    ]
+   },
+   {
+    "arm": "unusual",
+    "subject": "Nuclear pasta",
+    "headline": "Why do neutron stars contain pasta-shaped matter?",
+    "interest": "Particle physics",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "Gnocchi, spaghetti, lasagna, bucatini and Swiss cheese may sound tasty at first, until you realized that one teaspoon of this pasta outweighs Mount Everest…",
+    "candidates": [
+     "Bullfrog County, Nevada",
+     "Physics envy",
+     "Teeny Ted from Turnip Town",
+     "Laser Kiwi flag",
+     "Cocksucker Blues",
+     "Wiener sausage",
+     "Quantum suicide and immortality",
+     "Nuclear pasta"
+    ]
+   },
+   {
+    "arm": "unusual",
+    "subject": "Chicken gun",
+    "headline": "The cannon that fires dead chickens at planes",
+    "interest": "Off the map",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "Valuable for the mitigation of damage from bird strikes. The chicken carcass must be thawed first, though.",
+    "candidates": [
+     "Pinocchio paradox",
+     "L. W. Wright",
+     "Potrzebie",
+     "Men's underwear index",
+     "Congo Pedicle",
+     "Lee Kin-yan",
+     "Chicken gun",
+     "2002–03 UEFA Champions League knockout stage"
+    ]
+   },
+   {
+    "arm": "unusual",
+    "subject": "Bat bomb",
+    "headline": "The plan to bomb Japan with bats",
+    "interest": "Weird history",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "A World War II plan to bomb Japan with bats carrying tiny incendiary bombs.",
+    "candidates": [
+     "Swastika Laundry",
+     "Boxing at the 1924 Summer Olympics – Middleweight",
+     "Football War",
+     "Athletics at the 1908 Summer Olympics – Men's 400 metres",
+     "Beans in My Ears",
+     "Bat bomb",
+     "1967 Tasmanian State Premiership Final",
+     "Aimo Koivunen"
+    ]
+   },
+   {
+    "arm": "unusual",
+    "subject": "Affair of the Sausages",
+    "headline": "The sausage dinner that challenged the church",
+    "interest": "Off the map",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "One of the major events of the early Protestant Reformation in Switzerland was a religious dispute on whether sausages could be eaten during Lent.",
+    "candidates": [
+     "Murder Kroger",
+     "Khecarī mudrā",
+     "Affair of the Sausages",
+     "Pájaro verde",
+     "Shavarsh Karapetyan",
+     "Supermarioland",
+     "All in a Row",
+     "Dean scream"
+    ]
+   },
+   {
+    "arm": "unusual",
+    "subject": "Hufu (novelty item)",
+    "headline": "The tofu designed to taste like human flesh",
+    "interest": "Inventions",
+    "method": "v2 idea writer chose 1 of up to 8 listed articles",
+    "source_gist": "For all you vegetarian cannibals out there, the tofu product designed to look and taste like human flesh.",
+    "candidates": [
+     "Faxlore",
+     "M-185 (Michigan highway)",
+     "Cube house",
+     "Infernal machine (weapon)",
+     "Hufu (novelty item)",
+     "Captain Midnight broadcast signal intrusion",
+     "Texas State Highway 165",
+     "Vortech Meg-2XH Strap-On"
+    ]
+   }
+  ],
+  "calls": [
+   {
+    "arm": "unusual",
+    "usage": {
+     "input_tokens": 7677,
+     "input_tokens_details": {
+      "cache_write_tokens": 7674,
+      "cache_write_tokens_details": {
+       "ttl_12h_tokens": 0,
+       "ttl_30m_tokens": 7674
+      },
+      "cached_tokens": 0
+     },
+     "output_tokens": 1078,
+     "output_tokens_details": {
+      "reasoning_tokens": 911
+     },
+     "total_tokens": 8755
+    },
+    "error": null
+   },
+   {
+    "arm": "unusual",
+    "usage": {
+     "input_tokens": 7728,
+     "input_tokens_details": {
+      "cache_write_tokens": 7725,
+      "cache_write_tokens_details": {
+       "ttl_12h_tokens": 0,
+       "ttl_30m_tokens": 7725
+      },
+      "cached_tokens": 0
+     },
+     "output_tokens": 1523,
+     "output_tokens_details": {
+      "reasoning_tokens": 1342
+     },
+     "total_tokens": 9251
+    },
+    "error": null
+   },
+   {
+    "arm": "unusual",
+    "usage": {
+     "input_tokens": 8080,
+     "input_tokens_details": {
+      "cache_write_tokens": 8077,
+      "cache_write_tokens_details": {
+       "ttl_12h_tokens": 0,
+       "ttl_30m_tokens": 8077
+      },
+      "cached_tokens": 0
+     },
+     "output_tokens": 627,
+     "output_tokens_details": {
+      "reasoning_tokens": 449
+     },
+     "total_tokens": 8707
+    },
+    "error": null
+   },
+   {
+    "arm": "unusual",
+    "usage": {
+     "input_tokens": 8088,
+     "input_tokens_details": {
+      "cache_write_tokens": 8085,
+      "cache_write_tokens_details": {
+       "ttl_12h_tokens": 0,
+       "ttl_30m_tokens": 8085
+      },
+      "cached_tokens": 0
+     },
+     "output_tokens": 422,
+     "output_tokens_details": {
+      "reasoning_tokens": 259
+     },
+     "total_tokens": 8510
+    },
+    "error": null
+   },
+   {
+    "arm": "unusual",
+    "usage": {
+     "input_tokens": 6865,
+     "input_tokens_details": {
+      "cache_write_tokens": 6862,
+      "cache_write_tokens_details": {
+       "ttl_12h_tokens": 0,
+       "ttl_30m_tokens": 6862
+      },
+      "cached_tokens": 0
+     },
+     "output_tokens": 179,
+     "output_tokens_details": {
+      "reasoning_tokens": 142
+     },
+     "total_tokens": 7044
+    },
+    "error": null
+   }
+  ]
+ }
+}

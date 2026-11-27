@@ -10,6 +10,16 @@ import { prepareShare, shareLesson, type Shared } from '@/lib/api';
 import { useProfile } from '@/state/profile';
 import { colors, fonts } from '@/theme';
 
+// Sharing with different words per destination needs react-native-share, which only builds made
+// after it was added have. There, a text says "You've got to hear this story" with the link, and Copy
+// takes just the link. Older builds fall back to sharing the link alone.
+let nativeShare: any = null;
+try {
+  nativeShare = require('react-native-share').default;
+} catch {
+  nativeShare = null;
+}
+
 // Copying needs a part of the app that older installs do not have. There, only Share is offered.
 type Clip = typeof import('expo-clipboard');
 let clipboard: Clip | null = null;
@@ -67,13 +77,37 @@ export function ShareSheet({ lessonId, title, onClose }: { lessonId: string | nu
   };
   const closed = () => {
     const url = handOff.current;
+    const said = (shown?.title ?? title).replace(/[.\s]+$/, '');
     handOff.current = null;
     setShown(null);
     setShared(null);
-    // Only the link goes to iOS, so Copy there copies just the link, and a text shows the story's
-    // preview card with its title and artwork. iOS can't take different words for Messages and
-    // for Copy without a new native build.
-    if (url) setTimeout(() => Share.share(Platform.OS === 'ios' ? { url } : { message: url }).catch(() => {}), 50);
+    // A text gets "You've got to hear this story" with the link; Copy gets the link alone.
+    if (!url) return;
+    const plain = () => Share.share(Platform.OS === 'ios' ? { url } : { message: url }).catch(() => {});
+    const text = `You've got to hear this story: ${said} ${url}`;
+    setTimeout(() => {
+      if (!nativeShare?.open || Platform.OS !== 'ios') return void plain();
+      nativeShare
+        .open({
+          failOnCancel: false,
+          activityItemSources: [
+            {
+              placeholderItem: { type: 'url', content: url },
+              item: {
+                // Copy, AirDrop and anything else get the link alone.
+                default: { type: 'url', content: url },
+                copyToPasteBoard: { type: 'url', content: url },
+                // A text or an email carries the line with the link in it.
+                message: { type: 'text', content: text },
+                mail: { type: 'text', content: text },
+              },
+              subject: { default: said },
+              linkMetadata: { originalUrl: url, url, title: said },
+            },
+          ],
+        })
+        .catch(plain);
+    }, 50);
   };
 
   return (
@@ -107,12 +141,6 @@ export function ShareSheet({ lessonId, title, onClose }: { lessonId: string | nu
         <Switch value={showName} onValueChange={toggleName} trackColor={{ true: colors.ink, false: colors.line }} thumbColor={showName ? colors.yellow : colors.white} ios_backgroundColor={colors.line} />
       </View>
 
-      <View style={styles.note}>
-        <Text style={styles.noteText}>
-          {shared?.finishing ? 'The rest of this story gets finished once you send it. ' : ''}
-          Each friend who joins the waitlist moves you up.
-        </Text>
-      </View>
 
       {shared ? (
         <>
@@ -132,11 +160,9 @@ const styles = StyleSheet.create({
   coverWait: { width: 72, height: 72, backgroundColor: colors.line },
   cardTitle: { fontFamily: fonts.bodySemi, fontSize: 17, lineHeight: 21, color: colors.ink },
   link: { fontFamily: fonts.body, fontSize: 14, color: colors.gray, marginTop: 4 },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 18 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 18, marginBottom: 22 },
   nameTitle: { fontFamily: fonts.bodySemi, fontSize: 17, color: colors.ink },
   nameNote: { fontFamily: fonts.body, fontSize: 14, color: colors.gray, marginTop: 2 },
-  note: { backgroundColor: colors.yellow, padding: 14, marginTop: 18, marginBottom: 18 },
-  noteText: { fontFamily: fonts.body, fontSize: 15, lineHeight: 21, color: colors.ink },
   wait: { height: 64, alignItems: 'center', justifyContent: 'center' },
   error: { fontFamily: fonts.bodySemi, fontSize: 14, color: colors.vermilion, textAlign: 'center' },
 });

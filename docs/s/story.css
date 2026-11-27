@@ -138,3 +138,21 @@ input.nudge{animation:nudge .42s ease;outline:none;border-color:var(--red)!impor
 @keyframes fadein{from{opacity:0}to{opacity:1}}
 @keyframes risein{from{transform:translateY(100%)}to{transform:translateY(0)}}
 .dock .joined-line{font-weight:600;font-size:16px;padding:10px 0}
+
+/* The transcript: closed by default, a quiet text link that unfolds the whole story to read. */
+.transcript{margin:14px 0 0}
+.transcript summary{list-style:none;display:inline-flex;align-items:center;gap:7px;cursor:pointer;padding:4px 0;font-size:15px;font-weight:500;color:var(--gray);text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:4px}
+.transcript summary::-webkit-details-marker{display:none}
+.transcript summary:hover{color:var(--ink)}
+.transcript summary .chev{transition:transform .2s ease}
+.transcript[open] summary .chev{transform:rotate(180deg)}
+.transcript-body{max-width:36em;padding:6px 0 8px}
+.transcript-body h2{font-family:'Instrument Serif',serif;font-weight:400;font-size:28px;line-height:1.1;letter-spacing:-.3px;margin:26px 0 10px}
+.transcript-body p{font-family:'Inter',system-ui,sans-serif;font-size:17px;line-height:1.65;margin:0 0 14px;color:var(--ink)}
+.transcript-body .credits{border-top:1.5px solid var(--line);margin-top:26px;padding-top:16px}
+.transcript-body .credits ul{list-style:none;margin:10px 0 0;padding:0}
+.transcript-body .credits li{margin:0 0 8px;font-size:15px}
+.transcript-body .credits a{text-decoration:none}
+.transcript-body .credits .note{font-size:14px;line-height:1.5;color:var(--gray);margin-top:12px}
+/* With the transcript's own credits on the page, the shorter sources fold further down is not needed. */
+.has-transcript #src-box{display:none}

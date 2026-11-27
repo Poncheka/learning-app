@@ -33,7 +33,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/s/story.css">
 </head>
-<body data-art="{{ART}}">
+<body data-art="{{ART}}" class="{{BODYCLASS}}">
 
 <!-- 1. Landing: who sent it, the cover, one button. -->
 <main class="page" id="landing">
@@ -86,6 +86,7 @@
       <ol class="chapter-list" id="chapter-list" hidden></ol>
     </div>
     <p class="waiting" id="waiting" hidden>The rest of this story is still being finished. It carries on by itself in a minute or two.</p>
+    {{TRANSCRIPT}}
   </section>
   <section class="pitch">
     <h2>Whatever you&rsquo;re into, <em>there&rsquo;s a story.</em></h2>

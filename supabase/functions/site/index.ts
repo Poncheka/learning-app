@@ -2,7 +2,7 @@
 // what a visitor may see: a sample opening to play, shared stories, and the waitlist.
 //
 // GET  ?                       a random saved story opening, for the home page's player.
-// GET  ?stories=1              every shared story's address and title, to build its page and link preview.
+// GET  ?stories=1              every finished story's address and title, and for sent ones the transcript, to build its page.
 // GET  ?story=slug&r=code      one shared story to play: its chapters, who sent it, its sources.
 // POST { email, source?, ref?, interests?, story? }   join the waitlist. Answers with the joiner's own code.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
@@ -45,22 +45,106 @@ async function sample(not: string | null) {
 }
 
 /**
- * Topics someone has actually passed on. A link is made ahead, as soon as a story is opened, so
- * having a link is not enough: only a story that was sent is public.
+ * The story's address on itspliny.com, made from its title once and kept: "The pope who put a dead
+ * pope on trial" is /s/the-pope-who-put-a-dead-pope-on-trial. The same rule as in the shelf function.
  */
-async function sentTopics(): Promise<Set<string>> {
-  const { data } = await db.from("shares").select("topic_id").not("sent_at", "is", null).limit(20000);
-  return new Set((data ?? []).map((s: any) => s.topic_id as string));
+async function slugFor(topicId: string, title: string): Promise<string | null> {
+  const full = String(title || "story")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/['’]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const base = (full.length > 70 ? full.slice(0, 70).replace(/-[^-]*$/, "") : full) || "story";
+  for (let n = 1; n < 20; n++) {
+    const slug = n === 1 ? base : `${base}-${n}`;
+    const { error } = await db.from("topics").update({ slug }).eq("id", topicId).is("slug", null);
+    if (!error) {
+      const { data: kept } = await db.from("topics").select("slug").eq("id", topicId).maybeSingle();
+      if (kept?.slug) return kept.slug;
+    }
+  }
+  return null;
 }
 
-/** Every story that has been shared: enough to write its page and its link preview. */
+const SEGMENT_FIELDS = "position, title, status, audio_path, voice, duration_sec, target_minutes, script";
+
+/**
+ * The telling a story page plays when its link has no share code, and the one its transcript is
+ * written from, so the text matches the audio: the telling most recently sent by someone, or, if
+ * that has nothing playable, the recording with the most finished chapters.
+ */
+async function pageTelling(topicId: string): Promise<{ lessonId: string; segments: any[] } | null> {
+  const { data: sent } = await db.from("shares").select("lesson_id, sent_at").eq("topic_id", topicId).not("sent_at", "is", null).order("sent_at", { ascending: false }).limit(10);
+  for (const share of (sent ?? []) as any[]) {
+    const { data } = await db.from("segments").select(SEGMENT_FIELDS).eq("lesson_id", share.lesson_id).order("position");
+    if ((data ?? []).some(playable)) return { lessonId: share.lesson_id, segments: data ?? [] };
+  }
+  const { data: lessons } = await db.from("lessons").select(`id, segments(${SEGMENT_FIELDS})`).eq("topic_id", topicId).limit(50);
+  const best = (lessons ?? [])
+    .map((l: any) => ({ id: l.id, segs: (l.segments ?? []) as any[], ready: (l.segments ?? []).filter(playable).length, all: (l.segments ?? []).length }))
+    .filter((l) => l.ready > 0)
+    .sort((a, b) => Number(b.ready === b.all) - Number(a.ready === a.all) || b.ready - a.ready)[0];
+  return best ? { lessonId: best.id, segments: [...best.segs].sort((a, b) => a.position - b.position) } : null;
+}
+
+/** A chapter's narration as plain paragraphs, with any stage or voice direction taken out. */
+function readable(script: string): string[] {
+  return String(script ?? "")
+    .replace(/<[^>]*>/g, " ") // SSML or other markup, such as <break time="1s"/>
+    .replace(/\[[^\]\n]{1,40}\]/g, " ") // voice tags such as [pause] or [laughs]
+    .replace(/\((?:pause|beat|sighs?|laughs?|whispers?|softly|slowly|music|sound[^)]*)\)/gi, " ")
+    .replace(/^\s*(?:narrator|host|voice)\s*:\s*/gim, "")
+    .replace(/\*+/g, "")
+    .split(/\n\s*\n/)
+    .map((p) => p.replace(/[ \t]+/g, " ").replace(/\s*\n\s*/g, " ").trim())
+    .filter((p) => p.length > 0);
+}
+
+/** The sources a story was researched from, as links. Only https links are kept. */
+function sourceLinks(sources: unknown): { title: string; url: string }[] {
+  return (Array.isArray(sources) ? sources : [])
+    .filter((s: any) => s && typeof s.title === "string" && typeof s.url === "string" && /^https:\/\//.test(s.url))
+    .slice(0, 6)
+    .map((s: any) => ({ title: s.title, url: s.url }));
+}
+
+/**
+ * Every finished story, to write its page and its link preview ahead of time, so a link shows its
+ * title and artwork in a text from the moment it is sent. A page shows only the title, the hook and
+ * the artwork. Playing the story still needs a link someone has sent (see story below).
+ */
 async function stories() {
-  const [{ data }, sent] = await Promise.all([
-    db.from("topics").select("id, slug, title, hook, tag").not("slug", "is", null).eq("status", "ready").limit(5000),
-    sentTopics(),
+  const [{ data }, { data: sentRows }] = await Promise.all([
+    db.from("topics").select("id, slug, title, hook, tag, sources").eq("status", "ready").limit(5000),
+    db.from("shares").select("topic_id").not("sent_at", "is", null).limit(20000),
   ]);
+  const rows = (data ?? []) as any[];
+  const sent = new Set((sentRows ?? []).map((r: any) => r.topic_id));
+  // Stories finished since the last build get their address now, a few at a time.
+  let budget = 150;
+  for (const t of rows) {
+    if (t.slug || budget-- <= 0) continue;
+    t.slug = await slugFor(t.id, t.title);
+  }
+  // A story someone has sent gets its transcript written into its page, from the telling the page
+  // plays. Saved scripts only: nothing is generated here.
+  const transcripts = new Map<string, { chapters: { title: string; paragraphs: string[] }[]; sources: { title: string; url: string }[] }>();
+  for (const t of rows) {
+    if (!t.slug || !sent.has(t.id)) continue;
+    const telling = await pageTelling(t.id);
+    if (!telling) continue;
+    const chapters = telling.segments
+      .filter((g: any) => g.status === "ready" && typeof g.script === "string" && g.script.trim())
+      .map((g: any) => ({ title: String(g.title ?? ""), paragraphs: readable(g.script) }))
+      .filter((c: any) => c.paragraphs.length > 0);
+    if (chapters.length) transcripts.set(t.id, { chapters, sources: sourceLinks(t.sources) });
+  }
   return json({
-    stories: (data ?? []).filter((t: any) => sent.has(t.id)).map((t: any) => ({ slug: t.slug, title: t.title, hook: t.hook ?? "", tag: t.tag && t.tag !== "Off the map" ? t.tag : null, art: artOf(t.id) })),
+    stories: rows
+      .filter((t) => t.slug)
+      .map((t) => ({ slug: t.slug, title: t.title, hook: t.hook ?? "", tag: t.tag && t.tag !== "Off the map" ? t.tag : null, art: artOf(t.id), transcript: transcripts.get(t.id) ?? null })),
   });
 }
 
@@ -102,22 +186,14 @@ async function story(slug: string, code: string | null) {
 
   let segments: any[] = [];
   if (lessonId) {
-    const { data } = await db.from("segments").select("position, title, status, audio_path, voice, duration_sec, target_minutes").eq("lesson_id", lessonId).order("position");
+    const { data } = await db.from("segments").select(SEGMENT_FIELDS).eq("lesson_id", lessonId).order("position");
     segments = data ?? [];
   } else {
-    // No code, or one for another story: the recording with the most finished chapters.
-    const { data: lessons } = await db
-      .from("lessons")
-      .select("id, segments(position, title, status, audio_path, voice, duration_sec, target_minutes)")
-      .eq("topic_id", topic.id)
-      .limit(50);
-    const best = (lessons ?? [])
-      .map((l: any) => ({ id: l.id, segs: (l.segments ?? []) as any[], ready: (l.segments ?? []).filter(playable).length, all: (l.segments ?? []).length }))
-      .filter((l) => l.ready > 0)
-      .sort((a, b) => Number(b.ready === b.all) - Number(a.ready === a.all) || b.ready - a.ready)[0];
-    if (best) {
-      lessonId = best.id;
-      segments = [...best.segs].sort((a, b) => a.position - b.position);
+    // No code, or one for another story: the same telling the page's transcript was written from.
+    const telling = await pageTelling(topic.id);
+    if (telling) {
+      lessonId = telling.lessonId;
+      segments = telling.segments;
     }
   }
   if (!lessonId) return json({ error: "This story is not ready to play yet." }, 404);
@@ -135,10 +211,7 @@ async function story(slug: string, code: string | null) {
   });
   const sharer: string | null = (sharerRes as any)?.data?.first_name ?? null;
   const minutes = Math.max(1, Math.round(chapters.reduce((sum, c) => sum + c.seconds, 0) / 60));
-  const sources = (Array.isArray(topic.sources) ? topic.sources : [])
-    .filter((s: any) => s && typeof s.title === "string" && typeof s.url === "string" && /^https:\/\//.test(s.url))
-    .slice(0, 6)
-    .map((s: any) => ({ title: s.title, url: s.url }));
+  const sources = sourceLinks(topic.sources);
   return json({
     slug: topic.slug,
     title: topic.title,
