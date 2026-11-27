@@ -185,12 +185,25 @@
 
   var mine = null;
   function myLink() { return location.origin + '/s/' + slug + (mine ? '?r=' + mine : ''); }
+  // Sharing from the website copies the link, words and all, and says so.
+  function copyLink() {
+    var text = 'You gotta hear this! ' + story.title + '\n' + myLink();
+    var done = function () { toast('Copied to clipboard'); };
+    if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(done, function () { prompt('Copy the link', myLink()); });
+    else prompt('Copy the link', myLink());
+  }
   function toast(text) { var t = $('toast'); t.textContent = text; t.hidden = false; setTimeout(function () { t.hidden = true; }, 2200); }
 
+  // Joining does not stop the story: a panel rises over the page and is put away again.
   function joined() {
-    audio.pause(); wanted = false;
     $('ended').hidden = true;
+    var panel = $('joined-panel');
+    panel.style.transform = '';
+    $('joined').classList.remove('leaving');
     $('joined').hidden = false;
+    // The email box at the foot of the player has done its job.
+    $('to-join').hidden = true;
+    $('dock-form').innerHTML = '<p class="joined-line">You\u2019re on the list. Keep listening.</p>';
     if (story.sharer) $('joined-note').textContent = 'You came through ' + story.sharer + ', so you’re ahead of the general list. ' + story.sharer + ' moves up too.';
   }
 
@@ -235,21 +248,41 @@
   hook($('dock-form'), 'share-player', false);
   hook($('end-form'), 'share-end', true);
 
+  function closeJoined() {
+    var box = $('joined'), panel = $('joined-panel');
+    if (box.hidden) return;
+    box.classList.add('leaving');
+    panel.style.transform = 'translateY(100%)';
+    setTimeout(function () { box.hidden = true; box.classList.remove('leaving'); panel.style.transform = ''; }, 220);
+  }
+  $('close-joined').addEventListener('click', closeJoined);
+  $('joined-scrim').addEventListener('click', closeJoined);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeJoined(); });
+  // A swipe down from the top of the panel puts it away.
+  (function () {
+    var panel = $('joined-panel'), startY = null, dy = 0;
+    panel.addEventListener('touchstart', function (e) { if (panel.scrollTop <= 0) { startY = e.touches[0].clientY; dy = 0; panel.classList.add('dragging'); } }, { passive: true });
+    panel.addEventListener('touchmove', function (e) {
+      if (startY === null) return;
+      dy = Math.max(0, e.touches[0].clientY - startY);
+      panel.style.transform = 'translateY(' + dy + 'px)';
+    }, { passive: true });
+    panel.addEventListener('touchend', function () {
+      if (startY === null) return;
+      startY = null; panel.classList.remove('dragging');
+      if (dy > 90) closeJoined(); else panel.style.transform = '';
+    });
+  })();
+
   $('share').addEventListener('click', function () {
-    var data = { title: story.title + '. A story from Pliny', text: 'You gotta hear this! ' + story.title, url: myLink() };
-    if (navigator.share) navigator.share(data).catch(function () {});
-    else navigator.clipboard.writeText(myLink()).then(function () { toast('Link copied'); });
+    copyLink();
   });
   // Passing the story on from the page: the link names nobody, unless this visitor has joined
   // and has a code of their own, so the next person does not see "Jeff sent you a story".
   $('share-top').addEventListener('click', function () {
-    var data = { title: story.title + '. A story from Pliny', text: 'You gotta hear this! ' + story.title, url: myLink() };
-    if (navigator.share) navigator.share(data).catch(function () {});
-    else navigator.clipboard.writeText(myLink()).then(function () { toast('Link copied'); }, function () { prompt('Copy the link', myLink()); });
+    copyLink();
   });
-  $('copy').addEventListener('click', function () {
-    navigator.clipboard.writeText(myLink()).then(function () { toast('Link copied'); }, function () { prompt('Copy your link', myLink()); });
-  });
+  $('copy').addEventListener('click', copyLink);
 
   // ---------- Start ----------
 

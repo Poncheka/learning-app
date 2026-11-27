@@ -101,7 +101,7 @@ input.nudge{animation:nudge .42s ease;outline:none;border-color:var(--red)!impor
 .faster em{font-style:italic}
 .faster + p{margin:0 0 22px;font-size:17px;line-height:1.45;color:#333}
 .once{margin-top:auto;padding-top:40px;font-size:15px;color:var(--gray)}
-.toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:12px 20px;border-radius:22px;font-size:15px;font-weight:600;z-index:9}
+.toast{position:fixed;left:50%;bottom:calc(120px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:12px 20px;border-radius:22px;font-size:15px;font-weight:600;z-index:9}
 .missing{padding:60px 24px;text-align:center}
 .missing h1{font-size:40px;font-weight:400;margin:24px 0 12px}
 @media (min-width:700px){.sent{font-size:52px}.cover{width:280px;height:280px}}
@@ -123,3 +123,16 @@ input.nudge{animation:nudge .42s ease;outline:none;border-color:var(--red)!impor
 .chapter-list .d{flex:none;font-size:14px;color:var(--gray)}
 .chapter-list .on button{background:var(--yellow);font-weight:600}
 .chapter-list .on .d{color:var(--ink);font-weight:600}
+
+/* "You're on the list" rises over the page. The story keeps playing behind it, and a tap outside,
+   the close button or a swipe down puts it away. */
+.overlay{position:fixed;inset:0;z-index:6}
+.overlay .scrim{position:absolute;inset:0;background:rgba(23,25,27,.5);animation:fadein .22s ease}
+.panel{position:absolute;left:0;right:0;bottom:0;max-width:480px;margin:0 auto;max-height:92vh;max-height:92dvh;overflow:auto;background:var(--paper);border-radius:28px 28px 0 0;padding:10px 24px calc(28px + env(safe-area-inset-bottom));animation:risein .34s cubic-bezier(.2,.9,.3,1);transition:transform .22s ease}
+.panel.dragging{transition:none}
+.panel .grip{width:44px;height:5px;border-radius:3px;background:var(--line);margin:0 auto 6px}
+.panel-top{display:flex;justify-content:flex-end;margin-bottom:6px}
+.overlay.leaving .scrim{opacity:0;transition:opacity .2s ease}
+@keyframes fadein{from{opacity:0}to{opacity:1}}
+@keyframes risein{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.dock .joined-line{font-weight:600;font-size:16px;padding:10px 0}
