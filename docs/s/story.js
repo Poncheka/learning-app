@@ -6,6 +6,9 @@
   var slug = (location.pathname.match(/^\/s\/([a-z0-9-]+)/) || [])[1] || '';
   var code = (new URLSearchParams(location.search).get('r') || '').toLowerCase();
   var story = null, at = 0, audio = new Audio(), wanted = false, finished = false, poll = null;
+  // The same short sting of music the app plays after the opening and at the very end. While it
+  // plays, stingNext is the chapter that comes after it (the chapter count when it closes the story).
+  var STING = '/s/sting.mp3', stingNext = -1;
   var picked = [];
 
   // ---------- Showing the story ----------
@@ -90,7 +93,7 @@
     $('ic-play').hidden = !$('ic-pause').hidden;
     $('play').setAttribute('aria-label', $('ic-pause').hidden ? 'Play' : 'Pause');
     var before = story.chapters.slice(0, at).reduce(function (s, c) { return s + c.seconds; }, 0);
-    var done = finished ? seconds() : before + (audio.currentTime || 0);
+    var done = finished ? seconds() : stingNext >= 0 ? story.chapters.slice(0, stingNext).reduce(function (s, c) { return s + c.seconds; }, 0) : before + (audio.currentTime || 0);
     var pct = Math.min(100, (done / Math.max(1, seconds())) * 100);
     if (!dragging) $('fill').style.width = pct + '%';
     $('bar').setAttribute('aria-valuenow', String(Math.round(pct)));
@@ -140,6 +143,7 @@
   });
 
   function playChapter(i) {
+    stingNext = -1;
     var chapter = story.chapters[i];
     if (!chapter) return end();
     at = i;
@@ -199,7 +203,7 @@
     dragging = false;
     if (!spot) return paint();
     finished = false; wanted = true;
-    if (spot.chapter === at && audio.src) {
+    if (spot.chapter === at && audio.src && stingNext < 0) {
       audio.currentTime = spot.offset;
       audio.play().catch(function () {});
     } else {
@@ -221,16 +225,29 @@
     if (seekTo !== null) { audio.currentTime = Math.min(seekTo, Math.max(0, (audio.duration || seekTo + 1) - 1)); seekTo = null; }
   });
 
-  audio.addEventListener('ended', function () { playChapter(at + 1); });
+  audio.addEventListener('ended', function () {
+    // After the sting, carry on to the chapter it introduces, or finish the story.
+    if (stingNext >= 0) { var n = stingNext; stingNext = -1; return n >= story.chapters.length ? end() : playChapter(n); }
+    // The sting plays between the opening and the next chapter, and after the last chapter.
+    var last = at === story.chapters.length - 1;
+    if ((at === 0 && story.chapters.length > 1) || last) {
+      stingNext = at + 1;
+      if (!last) at = at + 1;
+      audio.src = STING;
+      audio.play().catch(function () { var n = stingNext; stingNext = -1; n >= story.chapters.length ? end() : playChapter(n); });
+      return paint();
+    }
+    playChapter(at + 1);
+  });
   ['play', 'pause', 'timeupdate', 'loadedmetadata'].forEach(function (e) { audio.addEventListener(e, paint); });
   audio.addEventListener('error', function () {
+    // If the sting will not load, skip straight past it.
+    if (stingNext >= 0) { var n = stingNext; stingNext = -1; return n >= story.chapters.length ? end() : playChapter(n); }
     // A link may have expired after hours on the page: fetch fresh ones and try the same chapter.
     load().then(function (r) { if (r.ok) { story.chapters = r.d.chapters; if (wanted) playChapter(at); } });
   });
 
   $('start').addEventListener('click', function () {
-    // The transcript sits under the button on the landing page, and under the player once it plays.
-    if ($('transcript')) $('waiting').after($('transcript'));
     show('player');
     $('player').scrollTop = 0;
     wanted = true;
